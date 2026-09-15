@@ -11,7 +11,7 @@ didáctica para cada componente.
 - **Montaje en 3 fases**, cada una con su propia escena 3D:
   1. **Sobre la placa base**: CPU, disipador, 2× RAM, SSD M.2 y tarjeta gráfica.
   2. **Dentro de la caja**: se instala la **placa ya montada**, la fuente de
-     alimentación y 2 ventiladores en una caja abierta.
+     alimentación, 2 ventiladores y un disco duro (HDD) en una caja abierta.
   3. **Periféricos**: monitor, teclado, ratón y altavoces a **escala realista**
      junto al PC ya montado.
 - **Modo práctica**: al coger una pieza se ilumina su hueco en verde con el
@@ -41,8 +41,8 @@ Otros comandos:
 npm run build     # comprueba tipos y genera la versión de producción en dist/
 npm run preview   # sirve la versión de producción
 npm run lint      # oxlint
+npm run models:optimize   # comprime los .glb de public/assets/models
 ```
-
 ## Controles
 
 - **Arrastrar y soltar**: coge una pieza de la bandeja y llévala a su sitio.
@@ -67,6 +67,17 @@ npm install
 Las decisiones de diseño, la estructura de carpetas y las convenciones están
 documentadas en [`AGENTS.md`](AGENTS.md).
 
+## Pruebas
+
+Con el servidor de desarrollo levantado:
+
+```bash
+node tests/run.mjs     # calibración + partida completa de las 3 fases
+```
+
+Usa Chromium headless (`puppeteer-core`) instalado aparte en `tests/`, así que
+no añade dependencias a la app.
+
 ## Modelos 3D (opcional)
 
 El simulador trae figuras 3D hechas por código, así que **funciona desde el
@@ -81,6 +92,30 @@ Los nombres exactos de los archivos y sus especificaciones están en
 
 El cargador **centra y reescala** cada modelo automáticamente, y si un archivo
 falta o falla, ese componente vuelve a su forma procedural sin romper nada.
+
+Los `.glb` originales suelen pesar demasiado para el aula (los de este proyecto
+sumaban 225 MB). Pásales el compresor antes de subirlos y quedan en ~13 MB:
+
+```bash
+npm run models:optimize -- --backup models-originales
+```
+
+Los originales sin optimizar se guardan en `models-originales/`, que está
+ignorado por git.
+
+### Calibrar una placa nueva
+
+Cada placa base tiene sus huecos en sitios distintos. Para una placa nueva:
+
+```bash
+npm run dev
+# abre http://localhost:5173/?calibrate=1
+```
+
+Se marca el zócalo de la CPU con un clic y cada ranura (RAM ×2, M.2, PCIe) con
+**dos clics, uno en cada extremo**. Al pulsar **Guardar en el proyecto** se
+escribe `.scratch/calibration.json` y esas coordenadas se vuelcan en
+`src/data/components.ts`. El modo solo existe en desarrollo.
 
 ## Cómo añadir o cambiar componentes
 

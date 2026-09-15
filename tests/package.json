@@ -1,0 +1,13 @@
+{
+  "name": "pc-sim-tests",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Pruebas end-to-end del simulador con Chromium headless (puppeteer-core). No forma parte de la app.",
+  "scripts": {
+    "e2e": "node run.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.11.0"
+  }
+}

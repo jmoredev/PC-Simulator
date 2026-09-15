@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { COMPONENTS_BY_STAGE } from '../data/components'
 import { STAGES } from '../data/stages'
 import { useGameStore } from '../store/useGameStore'
@@ -16,7 +17,7 @@ export function ComponentList({ onInspect }: Props) {
   const currentStage = STAGES[Math.min(stageIndex, STAGES.length - 1)].id
 
   const renderGroup = (title: string, items: ComponentDef[], active: boolean) => (
-    <div className={active ? undefined : 'comp-group--dim'}>
+    <>
       <div className="comp-cat">{title}</div>
       {items.map((def) => {
         const isPlaced = placedIds.has(def.id)
@@ -37,7 +38,7 @@ export function ComponentList({ onInspect }: Props) {
           </button>
         )
       })}
-    </div>
+    </>
   )
 
   return (
@@ -46,13 +47,17 @@ export function ComponentList({ onInspect }: Props) {
         <h2>Fases del montaje</h2>
       </div>
       <div className="panel-body">
-        {STAGES.map((stage) =>
-          renderGroup(
-            `${stage.index + 1}. ${stage.title}`,
-            COMPONENTS_BY_STAGE[stage.id],
-            stage.id === currentStage,
-          ),
-        )}
+        {STAGES.map((stage) => (
+          <Fragment key={stage.id}>
+            <div className={stage.id === currentStage ? undefined : 'comp-group--dim'}>
+              {renderGroup(
+                `${stage.index + 1}. ${stage.title}`,
+                COMPONENTS_BY_STAGE[stage.id],
+                stage.id === currentStage,
+              )}
+            </div>
+          </Fragment>
+        ))}
       </div>
     </div>
   )

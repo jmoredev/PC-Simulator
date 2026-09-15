@@ -16,6 +16,9 @@ import { STAGES } from '../data/stages'
 import { useCurrentStage, useGameStore } from '../store/useGameStore'
 import type { ComponentDef, Stage } from '../types'
 import { ComponentVisual } from './ComponentModel'
+import { CALIBRATE, DEBUG } from '../calibration'
+import { CalibrationPicker } from './CalibrationPicker'
+import { DebugGrid } from './DebugGrid'
 import { MountZone } from './MountZone'
 import { StageBoard } from './StageBoard'
 import { StageCase } from './StageCase'
@@ -100,7 +103,7 @@ function PlacedComponents() {
         if (!def) return null
         return (
           <group key={mount.id} position={mount.position}>
-            <ComponentVisual def={def} />
+            <ComponentVisual def={def} yaw={mount.angle ?? 0} />
           </group>
         )
       })}
@@ -145,7 +148,7 @@ function TrayItem({ def }: { def: ComponentDef }) {
       }}
     >
       <group scale={scale}>
-        <ComponentVisual def={def} />
+        <ComponentVisual def={def} yaw={MOUNT_BY_ID[def.mountId]?.angle ?? 0} />
       </group>
       {selected && (
         <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -187,7 +190,7 @@ function DragGhost() {
 
   return (
     <group position={position}>
-      <ComponentVisual def={def} />
+      <ComponentVisual def={def} yaw={mount?.angle ?? MOUNT_BY_ID[def.mountId]?.angle ?? 0} />
       <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.42, 0.5, 32]} />
         <meshBasicMaterial
@@ -242,15 +245,18 @@ function CameraRig({ stage }: { stage: Stage }) {
   const dragging = useGameStore((s) => s.dragging)
   const controls = useRef<React.ComponentRef<typeof OrbitControls>>(null)
   const { camera } = useThree()
-  const desiredPos = useRef(new THREE.Vector3(...stage.camera.position))
-  const desiredTarget = useRef(new THREE.Vector3(...stage.camera.target))
+  const view = CALIBRATE
+    ? { position: [0, 7.4, 2.0] as [number, number, number], target: [0, 0, 0.1] as [number, number, number] }
+    : stage.camera
+  const desiredPos = useRef(new THREE.Vector3(...view.position))
+  const desiredTarget = useRef(new THREE.Vector3(...view.target))
   const animating = useRef(false)
 
   useEffect(() => {
-    desiredPos.current.set(...stage.camera.position)
-    desiredTarget.current.set(...stage.camera.target)
+    desiredPos.current.set(...view.position)
+    desiredTarget.current.set(...view.target)
     animating.current = true
-  }, [stage.id, stage.camera.position, stage.camera.target])
+  }, [stage.id, view.position, view.target])
 
   useFrame((_, delta) => {
     const c = controls.current
@@ -284,6 +290,20 @@ function StageContent({ stage }: { stage: Stage }) {
 
 export function Scene() {
   const stage = useCurrentStage()
+
+  if (CALIBRATE) {
+    return (
+      <>
+        <Lights />
+        <Bench stage={stage} />
+        <StageBoard />
+        <DebugGrid />
+        <CalibrationPicker />
+        <CameraRig stage={stage} />
+      </>
+    )
+  }
+
   return (
     <>
       <Lights />
@@ -295,6 +315,7 @@ export function Scene() {
       <Tray stage={stage} />
       <DragGhost />
       <DragController />
+      {DEBUG && <DebugGrid />}
       <CameraRig stage={stage} />
     </>
   )

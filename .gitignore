@@ -18,6 +18,12 @@ build
 coverage
 *.lcov
 
+# Scratch local (scripts y capturas de depuración)
+.scratch
+
+# Modelos 3D originales sin optimizar (los .glb pesados). No se suben.
+models-originales
+
 # Logs
 logs
 *.log

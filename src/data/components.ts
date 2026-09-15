@@ -18,7 +18,7 @@ export const BOARD = {
 /** Cara superior de la placa base: donde posan los componentes. */
 export const BOARD_TOP = BOARD.rise + BOARD.thickness
 /** Plano que se usa para proyectar el puntero mientras se arrastra. */
-export const DROP_Y = BOARD_TOP
+export const DROP_Y = 0.12
 
 /** Interior de la caja tumbada en el banco (fase 2). */
 export const CASE = {
@@ -49,7 +49,7 @@ export const MOUNTS: MountPoint[] = [
     id: 'cpu_socket',
     stage: 'board',
     label: 'Zócalo de la CPU',
-    position: [0.5, BOARD_TOP + 0.06, -0.55],
+    position: [-0.681, 0.122, -0.042],
     accepts: ['cpu'],
     snapRadius: 0.55,
     size: [0.62, 0.62],
@@ -60,7 +60,7 @@ export const MOUNTS: MountPoint[] = [
     id: 'cooler_mount',
     stage: 'board',
     label: 'Anclaje del disipador',
-    position: [0.5, BOARD_TOP + 0.17, -0.55],
+    position: [-0.681, 0.172, -0.042],
     accepts: ['cooler'],
     snapRadius: 0.6,
     size: [0.75, 0.75],
@@ -70,22 +70,22 @@ export const MOUNTS: MountPoint[] = [
   {
     id: 'ram_slot_a',
     stage: 'board',
-    label: 'Ranura de RAM (DIMM A)',
-    position: [0.95, BOARD_TOP, -0.45],
+    label: 'Ranura de RAM (DIMM A2)',
+    position: [-0.605, 0.122, -0.56],
     accepts: ['ram'],
     snapRadius: 0.5,
-    size: [0.24, 1.45],
+    size: [1.45, 0.3],
     order: 4,
     difficulty: 2,
   },
   {
     id: 'ram_slot_b',
     stage: 'board',
-    label: 'Ranura de RAM (DIMM B)',
-    position: [1.18, BOARD_TOP, -0.45],
+    label: 'Ranura de RAM (DIMM B2)',
+    position: [-0.52, 0.117, -0.797],
     accepts: ['ram'],
     snapRadius: 0.5,
-    size: [0.24, 1.45],
+    size: [1.45, 0.3],
     order: 5,
     difficulty: 2,
   },
@@ -93,7 +93,7 @@ export const MOUNTS: MountPoint[] = [
     id: 'm2_slot',
     stage: 'board',
     label: 'Ranura M.2',
-    position: [0.35, BOARD_TOP, 0.15],
+    position: [0.116, 0.108, -0.398],
     accepts: ['ssd'],
     snapRadius: 0.5,
     size: [1.0, 0.34],
@@ -104,10 +104,11 @@ export const MOUNTS: MountPoint[] = [
     id: 'pcie_slot',
     stage: 'board',
     label: 'Ranura PCIe x16',
-    position: [-0.15, BOARD_TOP, 0.65],
+    position: [1.116, 0.197, 0.124],
     accepts: ['gpu'],
     snapRadius: 0.7,
-    size: [2.5, 0.34],
+    size: [2.3, 0.5],
+    angle: Math.PI / 2,
     order: 7,
     difficulty: 3,
   },
@@ -117,7 +118,7 @@ export const MOUNTS: MountPoint[] = [
     id: 'case_mobo_tray',
     stage: 'case',
     label: 'Bandeja de la placa base',
-    position: [0.15, CASE_DECK, -0.15],
+    position: [0.15, CASE_DECK, -0.35],
     accepts: ['motherboard'],
     snapRadius: 1.0,
     size: [3.5, 2.9],
@@ -155,6 +156,17 @@ export const MOUNTS: MountPoint[] = [
     snapRadius: 0.8,
     size: [1.4, 1.4],
     order: 11,
+    difficulty: 1,
+  },
+  {
+    id: 'case_drive_bay',
+    stage: 'case',
+    label: 'Bahía de discos',
+    position: [0.1, CASE_DECK, 1.8],
+    accepts: ['hdd'],
+    snapRadius: 0.8,
+    size: [1.3, 1.8],
+    order: 12,
     difficulty: 1,
   },
 
@@ -265,6 +277,7 @@ const RAW: RawComponent[] = [
     order: 3,
     mountId: 'ram_slot_a',
     size: 1.33,
+    rotation: [-Math.PI / 2, 0, 0],
     color: '#2f7d5b',
     description:
       'Es la memoria de trabajo a corto plazo. Guarda temporalmente los programas y datos que estás usando ahora mismo. Cuanta más RAM, más aplicaciones puedes abrir a la vez. Su contenido se borra al apagar el ordenador.',
@@ -281,6 +294,7 @@ const RAW: RawComponent[] = [
     order: 4,
     mountId: 'ram_slot_b',
     size: 1.33,
+    rotation: [-Math.PI / 2, 0, 0],
     color: '#2f7d5b',
     description:
       'Segundo módulo de memoria. Instalar dos módulos iguales activa el modo “doble canal” (dual channel): el procesador puede leer y escribir en los dos a la vez y el rendimiento mejora.',
@@ -297,6 +311,7 @@ const RAW: RawComponent[] = [
     order: 5,
     mountId: 'm2_slot',
     size: 0.9,
+    rotation: [0, Math.PI, 0],
     color: '#1f6f8b',
     description:
       'Almacenamiento permanente. Aquí se guardan el sistema operativo, tus archivos, juegos y fotos aunque apagues el ordenador. Los SSD M.2 se conectan directamente a la placa y no tienen partes móviles, por eso son mucho más rápidos y silenciosos que un disco duro tradicional (HDD).',
@@ -331,6 +346,7 @@ const RAW: RawComponent[] = [
     order: 7,
     mountId: 'case_mobo_tray',
     size: 3.05,
+    rotation: [0, Math.PI / 2, 0],
     color: '#166534',
     description:
       'Es la placa principal del ordenador y la base de todo el montaje. Conecta todos los componentes entre sí y permite que se comuniquen. Ya llevas montadas en ella la CPU, el disipador, la RAM, el SSD y la tarjeta gráfica, así que ahora se instala completa dentro de la caja, atornillada sobre los separadores (standoffs).',
@@ -386,6 +402,23 @@ const RAW: RawComponent[] = [
       'Un ventilador de 120 mm mueve más aire y hace menos ruido girando lento que uno de 80 mm girando rápido.',
   },
 
+  {
+    id: 'hdd',
+    kind: 'hdd',
+    stage: 'case',
+    name: 'Disco duro (HDD)',
+    subtitle: 'Almacenamiento magnético',
+    category: 'interno',
+    order: 11,
+    mountId: 'case_drive_bay',
+    size: 1.47,
+    color: '#6b7684',
+    description:
+      'Almacenamiento tradicional que guarda los datos en discos magnéticos que giran a gran velocidad. Es más lento que un SSD y tiene partes móviles, pero ofrece mucha capacidad a bajo precio. Lo habitual hoy es usar el SSD para el sistema operativo y el HDD para archivos grandes y copias de seguridad.',
+    funFact:
+      'Un HDD tarda unas 10 veces más que un SSD en arrancar el sistema, pero puedes encontrar unidades de 4 TB por poco dinero.',
+  },
+
   /* ---- Fase 3 ---- */
   {
     id: 'monitor',
@@ -394,7 +427,7 @@ const RAW: RawComponent[] = [
     name: 'Monitor',
     subtitle: 'Periférico de salida',
     category: 'periferico',
-    order: 11,
+    order: 12,
     mountId: 'monitor_area',
     size: 4.6,
     color: '#262b33',
@@ -410,7 +443,7 @@ const RAW: RawComponent[] = [
     name: 'Teclado',
     subtitle: 'Periférico de entrada',
     category: 'periferico',
-    order: 12,
+    order: 13,
     mountId: 'keyboard_area',
     size: 3.8,
     color: '#333945',
@@ -426,9 +459,10 @@ const RAW: RawComponent[] = [
     name: 'Ratón',
     subtitle: 'Periférico de entrada',
     category: 'periferico',
-    order: 13,
+    order: 14,
     mountId: 'mouse_area',
     size: 1.24,
+    rotation: [0, Math.PI, 0],
     color: '#333945',
     description:
       'Con él movemos el puntero por la pantalla. Un sensor óptico detecta el movimiento sobre la superficie y lo traduce en coordenadas. Sus botones permiten seleccionar, arrastrar y abrir elementos.',
@@ -442,7 +476,7 @@ const RAW: RawComponent[] = [
     name: 'Altavoces',
     subtitle: 'Periférico de salida de audio',
     category: 'periferico',
-    order: 14,
+    order: 15,
     mountId: 'speakers_area',
     size: 1.9,
     color: '#3a404a',

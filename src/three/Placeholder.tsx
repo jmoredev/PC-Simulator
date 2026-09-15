@@ -19,6 +19,8 @@ export function Placeholder({ def }: { def: ComponentDef }) {
       return <RamShape accent={def.color} />
     case 'ssd':
       return <SsdShape accent={def.color} />
+    case 'hdd':
+      return <HddShape accent={def.color} />
     case 'gpu':
       return <GpuShape accent={def.color} />
     case 'psu':
@@ -94,10 +96,10 @@ function CoolerShape({ accent }: { accent: string }) {
 function RamShape({ accent }: { accent: string }) {
   return (
     <group>
-      <Box s={[0.07, 0.5, 1.33]} p={[0, 0.25, 0]} c={accent} r={0.6} />
-      <Box s={[0.1, 0.05, 1.28]} p={[0, 0.03, 0]} c="#d9b44a" m={0.95} r={0.3} />
-      <Box s={[0.1, 0.1, 0.5]} p={[0, 0.45, -0.05]} c="#3a3f47" m={0.5} r={0.5} />
-      <Box s={[0.08, 0.06, 0.16]} p={[0, 0.4, 0.6]} c="#e6e9ee" m={0.6} r={0.4} />
+      <Box s={[1.33, 0.05, 0.5]} p={[0, 0.025, 0]} c={accent} r={0.6} />
+      <Box s={[1.28, 0.02, 0.08]} p={[0, 0.05, -0.21]} c="#d9b44a" m={0.95} r={0.3} />
+      <Box s={[0.5, 0.02, 0.1]} p={[-0.05, 0.06, 0.2]} c="#3a3f47" m={0.5} r={0.5} />
+      <Box s={[0.16, 0.02, 0.08]} p={[0.6, 0.05, 0.2]} c="#e6e9ee" m={0.6} r={0.4} />
     </group>
   )
 }
@@ -109,6 +111,18 @@ function SsdShape({ accent }: { accent: string }) {
       <Box s={[0.42, 0.02, 0.16]} p={[-0.12, 0.04, 0]} c="#0f1216" r={0.5} />
       <Box s={[0.16, 0.02, 0.14]} p={[0.14, 0.04, 0]} c="#1c2128" r={0.5} />
       <Box s={[0.08, 0.02, 0.16]} p={[0.42, 0.03, 0]} c="#d9b44a" m={0.95} r={0.3} />
+    </group>
+  )
+}
+
+function HddShape({ accent }: { accent: string }) {
+  return (
+    <group>
+      <Box s={[1.02, 0.26, 1.47]} p={[0, 0.13, 0]} c={accent} m={0.85} r={0.35} />
+      <Box s={[0.92, 0.02, 1.35]} p={[0, 0.27, 0]} c="#8b96a5" m={0.8} r={0.35} />
+      <Box s={[0.72, 0.01, 1.05]} p={[-0.05, 0.285, 0.05]} c="#243044" r={0.5} />
+      <Box s={[0.5, 0.08, 0.14]} p={[0, 0.13, 0.74]} c="#15181d" r={0.4} />
+      <Box s={[0.9, 0.05, 0.03]} p={[0, 0.16, -0.745]} c="#2f6b3d" r={0.4} />
     </group>
   )
 }

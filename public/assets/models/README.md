@@ -17,6 +17,24 @@ procedural), así que puedes ir añadiéndolos poco a poco.
 Si un archivo no existe o falla, ese componente concreto muestra su placeholder
 y el resto sigue funcionando: **no hay que tocar código**.
 
+## Optimización (hazlo siempre antes de subir modelos)
+
+Los `.glb` originales suelen venir con texturas de 4096 px y geometría muy
+densa. Sin comprimir, el montaje entero pasaba de **225 MB**; optimizado se
+queda en **~13 MB**, que sí se descarga en un aula.
+
+```bash
+npm run models:optimize                              # optimiza in situ
+npm run models:optimize -- --backup models-originales # guarda copia de los originales
+```
+
+- Aplica texturas WebP a 1024 px, cuantización de geometría y simplificación.
+- No necesitas buscar modelos "ligeros": **sube el que tengas y el script lo
+  deja listo**. Cualquier escala y cualquier tamaño de textura vale.
+- Los archivos ya optimizados se detectan y se saltan.
+- El único límite real es que un `.glb` de más de 100 MB no se puede subir a
+  GitHub; pásale el script antes de commitear.
+
 ## Nombres EXACTOS de los archivos
 
 El nombre debe coincidir con el `id` del componente. Formato recomendado: `.glb`
@@ -29,6 +47,7 @@ El nombre debe coincidir con el `id` del componente. Formato recomendado: `.glb`
 | `ram1.glb`         | Memoria RAM (módulo 1)     | Módulo rectangular y alargado con disipador.                         |
 | `ram2.glb`         | Memoria RAM (módulo 2)     | Puede ser una copia de `ram1.glb`.                                   |
 | `ssd.glb`          | SSD M.2                    | Placa alargada y fina, con chips y conector dorado en un extremo.    |
+| `hdd.glb`          | Disco duro (HDD)           | Caja metálica plana de 3,5" con etiqueta y conector.                 |
 | `gpu.glb`          | Tarjeta gráfica            | Tarjeta alargada con 2 ventiladores y lengüetas PCIe doradas.        |
 | `motherboard.glb`  | Placa base                 | **Solo la placa**, sin componentes. Se usa como base en la fase 1 y,  |
 |                    |                            | con lo montado encima, como pieza de la fase 2.                      |

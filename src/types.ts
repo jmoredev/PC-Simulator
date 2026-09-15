@@ -6,6 +6,7 @@ export type ComponentKind =
   | 'cooler'
   | 'ram'
   | 'ssd'
+  | 'hdd'
   | 'gpu'
   | 'psu'
   | 'fan'
@@ -55,6 +56,8 @@ export interface MountPoint {
   snapRadius: number
   /** Forma de la zona resaltable (ancho y profundo, en unidades). */
   size: [number, number]
+  /** Ángulo de la ranura en el plano XZ (radianes). */
+  angle?: number
   /** Orden recomendado de montaje. */
   order: number
   /** Nivel de dificultad del montaje. */
@@ -84,6 +87,8 @@ export interface ComponentDef {
   color: string
   /** Ruta explícita del modelo .glb (opcional). */
   model?: string
+  /** Giro del modelo en radianes [x, y, z] para orientarlo en el hueco. */
+  rotation?: Vec3
   /** Ruta explícita de la textura (opcional). */
   texture?: string
 }

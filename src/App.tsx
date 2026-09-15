@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
+import { CALIBRATE } from './calibration'
 import { useGameStore } from './store/useGameStore'
 import { Scene } from './three/Scene'
+import { CalibrationPanel } from './ui/CalibrationPanel'
 import { ComponentList } from './ui/ComponentList'
 import { FinishModal } from './ui/FinishModal'
 import { InfoPanel } from './ui/InfoPanel'
@@ -37,18 +39,24 @@ export default function App() {
         </Canvas>
       </div>
 
-      {phase !== 'menu' && (
+      {CALIBRATE ? (
+        <CalibrationPanel />
+      ) : (
         <>
-          <TopBar />
-          <ComponentList onInspect={setInspectedId} />
-          <InfoPanel inspectedId={inspectedId} selectedId={selectedId} mode={mode} />
-          <StatusBar />
-          <StageBanner />
+          {phase !== 'menu' && (
+            <>
+              <TopBar />
+              <ComponentList onInspect={setInspectedId} />
+              <InfoPanel inspectedId={inspectedId} selectedId={selectedId} mode={mode} />
+              <StatusBar />
+              <StageBanner />
+            </>
+          )}
+
+          {phase === 'menu' && <ModeMenu />}
+          {phase === 'finished' && <FinishModal />}
         </>
       )}
-
-      {phase === 'menu' && <ModeMenu />}
-      {phase === 'finished' && <FinishModal />}
     </div>
   )
 }

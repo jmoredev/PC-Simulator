@@ -14,7 +14,7 @@ export const STAGES: Stage[] = [
     hint: 'Monta la CPU, el disipador, la RAM, el SSD y la tarjeta gráfica.',
     bench: { width: 11, depth: 6.6, center: [0, 0.4] },
     tray: { cols: [-1.7, -0.5, 0.7], rows: [2.7, 3.6], surfaceY: 0.11 },
-    camera: { position: [0, 6.0, 6.2], target: [0, 0, 0.9] },
+    camera: { position: [0.3, 4.8, 4.6], target: [0.15, 0.05, -0.4] },
   },
   {
     id: 'case',
@@ -23,8 +23,8 @@ export const STAGES: Stage[] = [
     short: '2. Caja',
     hint: 'Instala la placa ya montada, la fuente de alimentación y los ventiladores.',
     bench: { width: 13, depth: 11, center: [0, 0.6] },
-    tray: { cols: [-1.6, 0.2], rows: [3.4, 4.6], surfaceY: 0.11 },
-    camera: { position: [0.2, 8.4, 8.6], target: [0, 0.2, 1.0] },
+    tray: { cols: [-2.0, -0.6, 0.8], rows: [3.0, 4.1], surfaceY: 0.11 },
+    camera: { position: [0.2, 8.4, 8.6], target: [0, 0.2, 0.9] },
   },
   {
     id: 'peripherals',

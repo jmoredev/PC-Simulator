@@ -10,8 +10,8 @@ se cambie la estructura de carpetas o se modifique el flujo de trabajo.
 
 Simulador 3D interactivo de **montaje de PC** para la asignatura de Tecnología
 de **4º de la ESO**. El alumnado monta un ordenador arrastrando componentes
-hasta su sitio, en dos modos de juego (práctica y examen) y con una ficha
-didáctica por componente.
+hasta su sitio, en **3 fases** (placa base → caja → periféricos), con dos modos
+de juego (práctica y examen) y una ficha didáctica por componente.
 
 - No hay backend ni cuentas de usuario: todo ocurre en el navegador.
 - Objetivo: funcionar en portátiles y Chromebooks modestos del aula.
@@ -33,6 +33,7 @@ npm run dev      # servidor de desarrollo (http://localhost:5173)
 npm run build    # tsc -b + vite build (debe pasar siempre)
 npm run lint     # oxlint (debe quedar sin avisos)
 npm run preview  # servir la build de producción
+npm run models:optimize  # comprimir los .glb de public/assets/models
 ```
 
 ## 3. Flujo de trabajo con git
@@ -52,30 +53,42 @@ PC-Emulator/
 │   └── assets/
 │       ├── models/          # .glb de los componentes (ver su README.md)
 │       └── textures/        # texturas sueltas (opcional)
+├── models-originales/       # .glb sin optimizar (225 MB). IGNORADO por git.
+├── .scratch/                # calibraciones y capturas de depuración. IGNORADO.
+├── scripts/
+│   └── optimize-models.mjs  # comprime los .glb para servirlos por web
+├── tests/
+│   ├── package.json         # puppeteer-core, aislado de la app
+│   └── run.mjs              # pruebas e2e (calibración + partida completa)
 ├── src/
 │   ├── data/
 │   │   ├── stages.ts        # las 3 fases: disposición, bandeja y cámara
 │   │   ├── components.ts    # MOUNTS (huecos) + COMPONENTS (catálogo didáctico)
 │   │   └── assets.ts        # activación de modelos (.env) y rutas
+│   ├── calibration.ts       # huecos calibrables y derivación del layout
 │   ├── store/
-│   │   └── useGameStore.ts  # estado global: fase, progreso, fallos, modo, drag
+│   │   ├── useGameStore.ts  # estado global: fase, progreso, fallos, modo, drag
+│   │   └── useCalibrationStore.ts # marcas del modo calibración (localStorage)
 │   ├── three/
 │   │   ├── Scene.tsx        # composición de la escena, luces, bandeja, arrastre, cámara
 │   │   ├── StageBoard.tsx   # fase 1: placa sobre alfombrilla antiestática
 │   │   ├── StageCase.tsx    # fase 2: caja abierta (bandeja, bahía PSU, anclajes)
 │   │   ├── StagePeripherals.tsx # fase 3: escritorio y torre terminada
 │   │   ├── Motherboard.tsx  # geometría de la placa base y sus zócalos
-│   │   ├── ComponentModel.tsx # carga de .glb, auto-fit, fallback y placa ensamblada
+│   │   ├── ComponentModel.tsx # carga de .glb, auto-fit, rotación, fallback y placa ensamblada
 │   │   ├── Placeholder.tsx  # geometría procedural de cada componente
 │   │   ├── MountZone.tsx    # zonas resaltadas de los huecos
+│   │   ├── CalibrationPicker.tsx # captura de puntos en modo calibración
+│   │   ├── DebugGrid.tsx    # rejilla de coordenadas (?debug=1)
 │   │   └── primitives.tsx   # helpers Box / Cyl / Ball
-│   ├── ui/                  # menú, lista por fases, ficha, progreso, resultados
+│   ├── ui/                  # menú, lista por fases, ficha, progreso, resultados, calibración
 │   ├── types.ts             # tipos compartidos (Stage, MountPoint, ComponentDef…)
 │   ├── App.tsx              # lienzo 3D + capas de interfaz
 │   ├── main.tsx             # punto de entrada
 │   └── index.css            # todos los estilos
 ├── AGENTS.md                # este archivo
 ├── README.md                # documentación para docentes / usuarios
+├── vite.config.ts           # plugin de dev que guarda la calibración
 └── .env.example             # plantilla para activar los modelos .glb
 ```
 
@@ -87,17 +100,18 @@ Todo el contenido vive en `src/data/`; no hay que tocar la 3D para añadir pieza
   (`board` | `case` | `peripherals`), superficie de trabajo (`bench`), rejilla de
   la bandeja (`tray`) y cámara (`camera`).
 - **`MountPoint`** (`MOUNTS`): un hueco. Tiene `stage`, `position` (base del
-  componente), `accepts` (tipos válidos), `snapRadius`, `size` (zona resaltada) y
-  `order`.
+  componente), `accepts` (tipos válidos), `snapRadius`, `size` (`[largo, ancho]`
+  de la zona resaltada), `angle` (giro en el plano XZ) y `order`.
 - **`ComponentDef`** (`COMPONENTS`): una pieza. Tiene `kind`, `stage`, `mountId`,
-  `size` (dimensión máxima para normalizar el modelo), `trayPos`, color y los
-  textos didácticos (`description`, `funFact`).
+  `size` (dimensión máxima para normalizar el modelo), `rotation` (giro [x,y,z]
+  del modelo), `trayPos`, color y los textos didácticos (`description`,
+  `funFact`).
 
 Reglas de layout:
 
 - **1 unidad ≈ 10 cm** y **Y hacia arriba**.
-- La placa base (ATX) mide `3.05 × 2.44` unidades; su cara superior está en
-  `BOARD_TOP = 0.24`.
+- La placa base (ATX) mide `~3.05 × 2.28` unidades. Las posiciones de sus huecos
+  salen del modo calibración, no de estimaciones a ojo (ver sección 7).
 - Las posiciones de la bandeja se calculan solas por fase a partir de la rejilla
   (`traySlot`) y el panel se ajusta a las piezas con `trayPanelFor`.
 
@@ -120,6 +134,16 @@ Reglas de layout:
 | 13 | **Avance automático de fase + aviso central** | Menos fricción: al completar una fase la cámara se mueve sola y aparece un cartel con lo siguiente. |
 | 14 | **El examen no muestra zonas ni etiquetas** | Sin pistas de verdad; solo hay feedback al acertar o fallar. Cada fallo resta 10 puntos. |
 | 15 | **Un solo sentido de montaje por pieza**, sin validar el orden | Se puede montar en cualquier orden; las pistas de la fase en práctica indican qué toca. |
+| 16 | **Optimización obligatoria de los `.glb`** (`npm run models:optimize`) | Los modelos originales sumaban 225 MB (texturas de 4096 px). Con WebP 1024 + cuantización + simplificación se quedan en ~13 MB (94 % menos), que sí se puede servir en el aula. |
+| 17 | **Compresión sin decodificadores externos**: `KHR_mesh_quantization` + `EXT_texture_webp` | three.js las soporta de serie, así que `useGLTF` carga los modelos sin configurar DRACO ni meshopt (y sin depender de una CDN). |
+| 18 | **El script de optimización nunca pierde el original** y salta lo ya optimizado | Detecta `KHR_mesh_quantization` como marca de "ya optimizado". *(Ver la nota de la sección 7: el temporal debe acabar en `.glb`.)* |
+| 19 | **Los originales pesados viven en `models-originales/` e ignorados por git** | Se conservan para reoptimizar sin ensuciar el repo ni GitHub (225 MB). |
+| 20 | **Modo calibración interactivo** (`?calibrate=1`) | Los zócalos reales de un `.glb` no se pueden adivinar. El usuario marca cada hueco con el ratón y se guarda en `.scratch/calibration.json`. Sirve para cualquier placa nueva. |
+| 21 | **Las pruebas e2e viven en `tests/` con su propio `package.json`** | `puppeteer-core` es solo para verificar; así no entra en las dependencias de la app. |
+| 22 | **Cada componente tiene su propia `rotation` [x,y,z] y se reajusta la base** | Los `.glb` vienen de fuentes distintas y no comparten orientación: la RAM viene tumbada y la GPU girada. `Align`/`GltfModel` giran y vuelven a centrar/base-alinear, memorizando el cálculo para no recorrer 115k vértices por frame. |
+| 23 | **Las etiquetas de las zonas tienen la altura limitada** (`Math.min(d/2 + 0.18, 0.6)`) | En zonas muy largas (GPU, placa) la etiqueta se iba muy arriba y quedaba fuera de pantalla. |
+| 24 | **Calibración de ranuras por sus dos extremos** | Un solo punto no dice dónde está el centro a lo largo de la ranura ni su ángulo; con los dos extremos se derivan centro, `angle` y `length`, y la pieza queda alineada. |
+| 25 | **`rotation` (modelo) + `angle` (hueco)** se suman en Y | Cada `.glb` viene girado de fábrica; separar "orientación del modelo" de "orientación de la ranura" deja reutilizar el mismo modelo en huecos con distinto ángulo. |
 
 ## 7. Pipeline de assets 3D
 
@@ -129,6 +153,45 @@ Reglas de layout:
 - El nombre del archivo debe ser el `id` del componente (p. ej. `gpu.glb`,
   `motherboard.glb`). Un `def.model` explícito tiene prioridad.
 - Especificaciones y tabla de nombres: `public/assets/models/README.md`.
+
+### Calibración de los huecos de una placa (`?calibrate=1`)
+
+Los zócalos de un `.glb` real no se pueden deducir del código. Para cada modelo
+de placa base:
+
+1. `npm run dev` y abrir `http://localhost:5173/?calibrate=1`.
+2. Marcar cada hueco en la placa. El **zócalo de la CPU** es un punto; las
+   **ranuras (RAM ×2, M.2 y PCIe)** piden **los dos extremos**, de ahí se saca el
+   centro, el ángulo y la longitud.
+3. Pulsar **Guardar en el proyecto**: escribe `.scratch/calibration.json` (solo
+   en desarrollo, vía el plugin `calibrationSaver` de `vite.config.ts`).
+4. Volcar el `layout` resultante en los `MOUNTS` de la fase `board`: `position`
+   desde el centro, `angle` y `size` = `[longitud, ancho]` de la ranura.
+
+El aviso `?debug=1` superpone una rejilla con coordenadas para comprobar los
+valores a mano.
+
+**Orientación de los modelos:** cada `.glb` viene de una fuente distinta. El
+campo `rotation` del componente corrige su eje (la RAM viene tumbada → −90° en
+X; el SSD viene con el conector al revés → 180° en Y). El ángulo de la ranura
+(`mount.angle`) se suma a la rotación en Y, así el mismo modelo sirve para
+cualquier orientación de ranura.
+
+### Optimización (obligatoria antes de subir modelos)
+
+```bash
+npm run models:optimize                                  # optimiza in situ
+npm run models:optimize -- --backup models-originales     # guarda copia antes
+npm run models:optimize -- --force                       # reoptimiza todo
+```
+
+- Aplica `--texture-size 1024 --texture-compress webp --compress quantize
+  --simplify true`. Resultado real: 225 MB → 13 MB.
+- **Detecta y salta** los archivos que ya tienen `KHR_mesh_quantization`.
+- **Trampa conocida:** `gltf-transform` elige el formato de salida por la
+  extensión del archivo. El temporal *debe* terminar en `.glb`
+  (`.nombre.glb.tmp.glb`); si no, escribe un glTF JSON con extensión `.glb` y
+  el modelo deja de cargar. Ya está corregido en el script.
 - No descargar modelos con licencia dudosa; si se aportan, citar autor y
   licencia.
 
@@ -162,8 +225,9 @@ No hay suite de tests automáticos. Antes de dar por bueno un cambio:
 
 1. `npx tsc -b` (o `npm run build`) sin errores.
 2. `npm run lint` sin avisos.
-3. Prueba manual: completar las 3 fases en modo práctica y un fallo en examen.
+3. `node tests/run.mjs` con el servidor de desarrollo levantado (comprueba el
+   modo calibración y una partida completa de las 3 fases).
 
-Para verificación automatizada se ha usado Chromium headless (puppeteer-core)
-comprobando que se colocan las 14 piezas, que la fase avanza sola y que en
-examen no hay etiquetas y sí conteo de fallos.
+El arnés de `tests/` usa Chromium headless vía `puppeteer-core` y es la forma
+rápida de detectar regresiones en la colocación de piezas, el avance de fase y
+el conteo de fallos.

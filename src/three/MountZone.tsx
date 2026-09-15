@@ -54,7 +54,7 @@ export function MountZone({ mount }: Props) {
     <group
       ref={group}
       position={[mount.position[0], mount.position[1] + 0.006, mount.position[2]]}
-      rotation={[-Math.PI / 2, 0, 0]}
+      rotation={[-Math.PI / 2, 0, -(mount.angle ?? 0)]}
       onPointerDown={(event) => {
         if (!showInPractice || !isCandidate) return
         event.stopPropagation()
@@ -80,7 +80,7 @@ export function MountZone({ mount }: Props) {
       {mode === 'practice' && (
         <Html
           center
-          position={[0, 0, d * 0.5 + 0.18]}
+          position={[0, 0, Math.min(d * 0.5 + 0.18, 0.6)]}
           style={{ pointerEvents: 'none' }}
         >
           <div className={`mount-label${isHover ? ' mount-label--active' : ''}`}>
