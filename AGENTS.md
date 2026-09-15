@@ -148,8 +148,8 @@ Reglas de layout:
 ## 7. Pipeline de assets 3D
 
 - Sin modelos: se usan las formas de `Placeholder.tsx`.
-- Con modelos: dejar los `.glb` en `public/assets/models/` y crear `.env` con
-  `VITE_USE_MODELS=true` (ver `.env.example`).
+- Con modelos: dejar los `.glb` en `public/assets/models/`; se usan por defecto.
+  Para desactivarlos, `.env` con `VITE_USE_MODELS=false` (ver `.env.example`).
 - El nombre del archivo debe ser el `id` del componente (p. ej. `gpu.glb`,
   `motherboard.glb`). Un `def.model` explícito tiene prioridad.
 - Especificaciones y tabla de nombres: `public/assets/models/README.md`.

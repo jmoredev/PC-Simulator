@@ -6,13 +6,9 @@ procedural), así que puedes ir añadiéndolos poco a poco.
 ## Cómo activarlos
 
 1. Deja los archivos en esta carpeta (`public/assets/models/`).
-2. Crea un archivo `.env` en la raíz del proyecto con:
-
-   ```
-   VITE_USE_MODELS=true
-   ```
-
-3. Reinicia `npm run dev`.
+2. Listo: **se usan automáticamente**. Si quieres desactivarlos (para ir más
+   rápido mientras desarrollas), crea un `.env` con `VITE_USE_MODELS=false`.
+3. Reinicia `npm run dev` si has cambiado el `.env`.
 
 Si un archivo no existe o falla, ese componente concreto muestra su placeholder
 y el resto sigue funcionando: **no hay que tocar código**.

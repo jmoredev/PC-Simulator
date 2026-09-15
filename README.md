@@ -84,8 +84,8 @@ El simulador trae figuras 3D hechas por código, así que **funciona desde el
 primer momento**. Para usar modelos reales con texturas:
 
 1. Mete los archivos en `public/assets/models/`.
-2. Copia `.env.example` a `.env` (con `VITE_USE_MODELS=true`).
-3. Reinicia el servidor de desarrollo.
+2. Listo: se usan automáticamente. Para desactivarlos, `.env` con
+   `VITE_USE_MODELS=false`.
 
 Los nombres exactos de los archivos y sus especificaciones están en
 [`public/assets/models/README.md`](public/assets/models/README.md).
