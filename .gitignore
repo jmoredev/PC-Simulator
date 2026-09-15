@@ -1,0 +1,48 @@
+# Dependencias
+node_modules
+.pnpm-store
+
+# Build
+dist
+dist-ssr
+build
+*.tsbuildinfo
+
+# Cachés
+.vite
+.cache
+.oxlintcache
+.eslintcache
+
+# Tests / cobertura
+coverage
+*.lcov
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Variables de entorno (usa .env.example como plantilla)
+.env
+.env.*
+!.env.example
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+*.local
+
+# Editores
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
