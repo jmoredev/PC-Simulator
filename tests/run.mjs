@@ -12,12 +12,10 @@ import { homedir } from 'node:os'
 import puppeteer from 'puppeteer-core'
 
 const BASE_URL = process.env.BASE_URL ?? 'http://127.0.0.1:5199'
-const DEPTHS = [0.62, 0.75, 0.3, 0.3, 1.0, 2.3, 2.9, 1.9, 1.4, 1.4, 1.8, 2.0, 1.6, 1.7, 1.1]
-const NAMES = [
-  'cpu', 'cooler', 'ram1', 'ram2', 'ssd', 'gpu',
-  'motherboard', 'psu', 'fan1', 'fan2', 'hdd',
-  'monitor', 'keyboard', 'mouse', 'speakers',
-]
+/** Piezas totales de la bandeja con la placa por defecto (incluye señuelos). */
+const ITEMS = 20
+/** Piezas que hay que colocar para terminar. */
+const PLACEABLE = 18
 
 function findChrome() {
   if (process.env.CHROME) return process.env.CHROME
@@ -44,26 +42,54 @@ async function newPage(browser, url) {
   return { page, errors }
 }
 
-/** Coloca el componente i usando la etiqueta de la zona y el clic. */
+/**
+ * Coloca el componente i: lo selecciona en la lista y clica en el centro de su
+ * zona iluminada (el punto invisible `.mount-center` que pinta `MountZone`).
+ */
 async function place(page, i) {
   const items = await page.$$('button.comp-item')
-  await items[i].click()
-  await wait(600)
-  const label = await page
-    .$eval('.mount-label', (el) => {
-      const r = el.getBoundingClientRect()
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
-    })
-    .catch(() => null)
-  if (!label) return false
+  const name = await items[i].evaluate((el) => el.querySelector('.name')?.textContent ?? '')
 
   const progress = () => page.$eval('.progress-label', (el) => el.textContent.trim())
+  const readCenter = () =>
+    page
+      .$eval('.mount-center', (el) => {
+        const r = el.getBoundingClientRect()
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+      })
+      .catch(() => null)
+  const isSelected = () =>
+    page.$$eval(
+      '.comp-item--active',
+      (els, n) => els.some((el) => el.querySelector('.name')?.textContent === n),
+      name,
+    )
+
+  const select = async () => {
+    for (let n = 0; n < 2; n++) {
+      await items[i].click()
+      for (let t = 0; t < 12; t++) {
+        await wait(250)
+        if (await isSelected()) return true
+      }
+    }
+    return false
+  }
+
+  if (!(await select())) return false
+
+  let center = null
+  for (let t = 0; t < 8 && !center; t++) {
+    await wait(250)
+    center = await readCenter()
+  }
+  if (!center) return false
+
   const before = await progress()
-  const base = 80 * (DEPTHS[i] / 2 + 0.18)
-  for (const off of [base, base - 20, base + 20, base - 40, base + 40, 60, 80, 100, 120]) {
-    if (off < 10 || off > 180) continue
-    await page.mouse.click(label.x, label.y + off)
-    await wait(320)
+  for (const [dx, dy] of [[0, 0], [0, -20], [0, 20], [-20, 0], [20, 0], [-20, -20], [20, 20]]) {
+    if (!(await isSelected()) && !(await select())) return false
+    await page.mouse.click(center.x + dx, center.y + dy)
+    await wait(280)
     if ((await progress()) !== before) {
       await wait(900)
       return true
@@ -94,8 +120,8 @@ const browser = await puppeteer.launch({
   const { page, errors } = await newPage(browser, `${BASE_URL}/?calibrate=1`)
   await wait(5000)
   check('calibración: panel visible', !!(await page.$('.calib')))
-  const slots = await page.$$('.calib__slot')
-  check("calibración: 5 huecos", slots.length === 5, `${slots.length}`)
+  const slots = await page.$$('.calib__slots .calib__slot')
+  check('calibración: 6 huecos', slots.length === 6, `${slots.length}`)
 
   await slots[0].click()
   await wait(300)
@@ -124,12 +150,47 @@ const browser = await puppeteer.launch({
   ;(await page.$$('button.mode-card'))[0].click()
   await wait(3500)
 
-  let placed = 0
-  for (let i = 0; i < NAMES.length; i++) {
-    if (await place(page, i)) placed++
+  const placedCount = () => page.$$eval('.comp-item--placed', (els) => els.length)
+
+  // Fase 1: las 6 piezas de la placa
+  for (let i = 0; i < 6; i++) {
+    await place(page, i)
   }
+
+  // Fase 2: arrastrar un cable desde la barra inferior hasta su puerto
+  let dragged = false
+  const bar = await page.$('.connbar__item')
+  if (bar) {
+    const box = await bar.boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await wait(300)
+    await page.mouse.move(700, 300)
+    await wait(300)
+    const center = await page
+      .$eval('.mount-center', (el) => {
+        const r = el.getBoundingClientRect()
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+      })
+      .catch(() => null)
+    if (center) await page.mouse.move(center.x, center.y)
+    await wait(300)
+    await page.mouse.up()
+    await wait(900)
+    dragged = true
+  }
+  const afterDrag = await placedCount()
+  check('partida: arrastrar desde la barra de cables', dragged && afterDrag >= 7, `${afterDrag}`)
+
+  // El resto, con clic y clic
+  for (let i = 0; i < ITEMS; i++) {
+    await place(page, i)
+  }
+
   const progress = await page.$eval('.progress-label', (el) => el.textContent.trim())
-  check('partida: 15/15 piezas', progress === '15/15', progress)
+  check(`partida: ${PLACEABLE}/${PLACEABLE} piezas`, progress === `${PLACEABLE}/${PLACEABLE}`, progress)
+  const marked = await placedCount()
+  check(`partida: ${PLACEABLE} piezas colocadas`, marked === PLACEABLE, `${marked}`)
   check('partida: modal final', !!(await page.$('.overlay')))
   check('partida: sin errores', errors.length === 0, errors.join(' | '))
   await page.close()

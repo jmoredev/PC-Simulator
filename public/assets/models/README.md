@@ -43,13 +43,8 @@ El nombre debe coincidir con el `id` del componente. Formato recomendado: `.glb`
 | `ram1.glb`         | Memoria RAM (módulo 1)     | Módulo rectangular y alargado con disipador.                         |
 | `ram2.glb`         | Memoria RAM (módulo 2)     | Puede ser una copia de `ram1.glb`.                                   |
 | `ssd.glb`          | SSD M.2                    | Placa alargada y fina, con chips y conector dorado en un extremo.    |
-| `hdd.glb`          | Disco duro (HDD)           | Caja metálica plana de 3,5" con etiqueta y conector.                 |
 | `gpu.glb`          | Tarjeta gráfica            | Tarjeta alargada con 2 ventiladores y lengüetas PCIe doradas.        |
-| `motherboard.glb`  | Placa base                 | **Solo la placa**, sin componentes. Se usa como base en la fase 1 y,  |
-|                    |                            | con lo montado encima, como pieza de la fase 2.                      |
-| `psu.glb`          | Fuente de alimentación     | Caja metálica rectangular con ventilador y rejilla.                  |
-| `fan1.glb`         | Ventilador de caja         | Ventilador de 120 mm.                                                |
-| `fan2.glb`         | Ventilador de caja         | Puede ser una copia de `fan1.glb`.                                   |
+| `motherboard.glb`  | Placa base                 | **Solo la placa**, sin componentes. Es la base de la fase 1.         |
 | `monitor.glb`      | Monitor                    | Pantalla con peana. Mírala de frente hacia +Z. Tamaño real (~53 cm). |
 | `keyboard.glb`     | Teclado                    | Teclado plano apoyado en el suelo (~44 cm de ancho).                 |
 | `mouse.glb`        | Ratón                      | Ratón pequeño (~12 cm).                                              |
@@ -57,6 +52,15 @@ El nombre debe coincidir con el `id` del componente. Formato recomendado: `.glb`
 
 > Los periféricos son grandes de verdad (un monitor es más ancho que la placa
 > base). Es correcto: así se ve la diferencia de escala al montarlos en la fase 3.
+
+> Los **cables de la fase 2** (HDMI, USB, red, jacks…) no son modelos 3D: se
+> dibujan con imágenes PNG en `src/assets/connectors/` (ver su README).
+
+## Placas base
+
+Las placas base no van aquí: cada una es un `.glb` **sin comprimir** en
+`models-originales/placas/<id>.glb` (carpeta ignorada por git). Se eligen con
+`?board=<id>` y se registran en `src/data/boards.ts`. Ver el README principal.
 
 ## Especificaciones recomendadas
 

@@ -4,7 +4,7 @@ import type { GameMode } from '../types'
 
 const STEPS: [string, string][] = [
   ['1', 'Elige un componente de la bandeja con el ratón.'],
-  ['2', 'Arrástralo hasta su sitio en la placa, la caja o la mesa.'],
+  ['2', 'Arrástralo hasta su sitio en la placa, el panel trasero o la mesa.'],
   ['3', 'Si encaja, se coloca solo. Si no, vuelve a la bandeja.'],
   ['4', 'También puedes hacer clic en un componente y luego en su hueco.'],
 ]
@@ -20,8 +20,8 @@ export function ModeMenu() {
         <h1>Simulador de montaje de PC</h1>
         <p className="lead">
           Vas a montar un ordenador como lo haría un técnico, en <b>3 fases</b>:
-          primero las piezas sobre la placa base, después todo dentro de la caja y
-          por último los periféricos. Elige cómo quieres practicar.
+          primero las piezas sobre la placa base, después los cables en la parte
+          trasera y por último los periféricos. Elige cómo quieres practicar.
         </p>
 
         <div className="phase-strip">

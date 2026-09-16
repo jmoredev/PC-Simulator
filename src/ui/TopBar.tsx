@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { COMPONENTS } from '../data/components'
+import { TOTAL_STEPS } from '../data/components'
 import { STAGES } from '../data/stages'
 import { useGameStore } from '../store/useGameStore'
 
@@ -19,7 +19,7 @@ export function TopBar() {
   }, [])
 
   const done = Object.keys(placed).length
-  const total = COMPONENTS.length
+  const total = TOTAL_STEPS
   const pct = (done / total) * 100
   const seconds = Math.max(0, Math.floor((now - startedAt) / 1000))
   const mm = Math.floor(seconds / 60)

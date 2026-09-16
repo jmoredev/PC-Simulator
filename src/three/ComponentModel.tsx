@@ -1,10 +1,9 @@
 import { Component, Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { useGLTF } from '@react-three/drei'
+import { useGLTF, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
-import { modelUrl } from '../data/assets'
-import { BOARD_MOUNT_IDS, COMPONENT_BY_ID, MOUNT_BY_ID } from '../data/components'
-import { useGameStore } from '../store/useGameStore'
+import { connectorImageUrl, modelUrl, type ModelSpec } from '../data/assets'
+import { BOARD_MODEL } from '../data/components'
 import type { ComponentDef, Vec3 } from '../types'
 import { Motherboard } from './Motherboard'
 import { Placeholder } from './Placeholder'
@@ -90,63 +89,71 @@ function GltfModel({ url, target, rotation }: { url: string; target: number; rot
 
 /** Modelo real si existe; si no, el `fallback` indicado (ya alineado). */
 function ModelOrFallback({
-  def,
+  spec,
   fallback,
   rotation = IDENTITY,
 }: {
-  def: ComponentDef
+  spec: ModelSpec & { size: number }
   fallback: ReactNode
   rotation?: Vec3
 }) {
-  const url = modelUrl(def)
+  const url = modelUrl(spec)
   const aligned = <Align rotation={rotation}>{fallback}</Align>
   if (!url) return aligned
   return (
     <Suspense fallback={aligned}>
       <ModelErrorBoundary fallback={aligned}>
-        <GltfModel url={url} target={def.size} rotation={rotation} />
+        <GltfModel url={url} target={spec.size} rotation={rotation} />
       </ModelErrorBoundary>
     </Suspense>
   )
 }
 
-/** Solo la placa base, sin nada montado encima. */
-export function BoardBase() {
-  const motherboard = COMPONENT_BY_ID.motherboard
-  if (!motherboard) return <Motherboard />
+/**
+ * Conector de la fase 2 dibujado con su imagen PNG, tumbada en el plano.
+ * Se conserva la proporción de la imagen y su dimensión mayor es `def.size`.
+ */
+function ConnectorImage({ def, vertical }: { def: ComponentDef; vertical?: boolean }) {
+  const url = connectorImageUrl(def.kind)
+  const texture = useTexture(url ?? '', (loaded) => {
+    const tex = Array.isArray(loaded) ? loaded[0] : loaded
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.needsUpdate = true
+  })
+
+  const { w, d } = useMemo(() => {
+    const image = texture.image as { width?: number; height?: number } | undefined
+    const ratio = (image?.height ?? 1) / (image?.width ?? 1) || 1
+    const max = def.size
+    return ratio >= 1 ? { w: max / ratio, d: max } : { w: max, d: max * ratio }
+  }, [texture, def.size])
+
   return (
-    <group name="board">
-      <ModelOrFallback
-        def={motherboard}
-        fallback={<Motherboard />}
-        rotation={motherboard.rotation ?? IDENTITY}
+    <mesh
+      rotation={vertical ? [0, -Math.PI / 2, 0] : [-Math.PI / 2, 0, 0]}
+      position={vertical ? [-0.006, 0, 0] : [0, 0.004, 0]}
+    >
+      <planeGeometry args={[w, d]} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        alphaTest={0.02}
+        toneMapped={false}
+        side={THREE.DoubleSide}
       />
-    </group>
+    </mesh>
   )
 }
 
-/**
- * Placa base con todo lo que ya se ha montado encima (fase 1).
- * Es la pieza que se instala dentro de la caja en la fase 2.
- */
-export function BoardAssembly() {
-  const placed = useGameStore((s) => s.placed)
-
+/** Solo la placa base, sin nada montado encima. */
+export function BoardBase() {
   return (
-    <group>
-      <BoardBase />
-      {BOARD_MOUNT_IDS.map((mountId) => {
-        const componentId = placed[mountId]
-        if (!componentId) return null
-        const mount = MOUNT_BY_ID[mountId]
-        const def = COMPONENT_BY_ID[componentId]
-        if (!mount || !def) return null
-        return (
-          <group key={mountId} position={mount.position}>
-            <ComponentVisual def={def} yaw={mount.angle ?? 0} />
-          </group>
-        )
-      })}
+    <group name="board">
+      <ModelOrFallback
+        spec={BOARD_MODEL}
+        fallback={<Motherboard />}
+        rotation={BOARD_MODEL.rotation}
+      />
     </group>
   )
 }
@@ -155,15 +162,30 @@ export function BoardAssembly() {
  * Muestra el modelo real si existe; si no, la geometría procedural.
  * Gracias al ErrorBoundary, un .glb que falte no rompe la aplicación.
  */
-export function ComponentVisual({ def, yaw = 0 }: { def: ComponentDef; yaw?: number }) {
-  if (def.kind === 'motherboard') return <BoardAssembly />
+export function ComponentVisual({
+  def,
+  yaw = 0,
+  vertical = false,
+}: {
+  def: ComponentDef
+  yaw?: number
+  vertical?: boolean
+}) {
   const r = def.rotation ?? IDENTITY
-  const rotation: Vec3 = [r[0], r[1] + yaw, r[2]]
-  return (
-    <ModelOrFallback
-      def={def}
-      fallback={<Placeholder def={def} />}
-      rotation={rotation}
-    />
-  )
+  const fallback = <Placeholder def={def} />
+
+  const body =
+    def.category === 'conector' && connectorImageUrl(def.kind) ? (
+      <Suspense fallback={<Align rotation={r}>{fallback}</Align>}>
+        <ModelErrorBoundary fallback={<Align rotation={r}>{fallback}</Align>}>
+          <ConnectorImage def={def} vertical={vertical} />
+        </ModelErrorBoundary>
+      </Suspense>
+    ) : (
+      <ModelOrFallback spec={def} fallback={fallback} rotation={r} />
+    )
+
+  // El giro de la ranura se aplica por fuera de la rotación del modelo: así la
+  // pieza gira sobre la vertical aunque su modelo venga tumbado (RAM).
+  return <group rotation={[0, yaw, 0]}>{body}</group>
 }

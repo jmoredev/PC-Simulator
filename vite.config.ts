@@ -1,12 +1,12 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import type { Plugin, ViteDevServer } from 'vite'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /**
  * Endpoint solo de desarrollo que permite al modo calibración guardar las
- * coordenadas de los huecos en .scratch/calibration.json.
+ * coordenadas de los huecos en .scratch/calibration-<placa>.json.
  * No existe en producción (configureServer solo aplica al servidor de dev).
  */
 function calibrationSaver(): Plugin {
@@ -24,7 +24,8 @@ function calibrationSaver(): Plugin {
         req.on('end', () => {
           try {
             const data = JSON.parse(body)
-            const file = resolve('.scratch/calibration.json')
+            const board = String(data.boardId ?? 'placa').replace(/[^\w.-]/g, '') || 'placa'
+            const file = resolve(`.scratch/calibration-${board}.json`)
             mkdirSync(resolve('.scratch'), { recursive: true })
             writeFileSync(file, JSON.stringify(data, null, 2) + '\n')
             res.setHeader('content-type', 'application/json')
@@ -39,7 +40,35 @@ function calibrationSaver(): Plugin {
   }
 }
 
+/**
+ * Sirve los modelos de placa sin comprimir desde `models-originales/placas/`
+ * (ignorada por git). Así se puede trabajar con los .glb originales, nítidos,
+ * sin copiarlos a `public/` ni pasarlos por `models:optimize`.
+ */
+function boardModels(): Plugin {
+  return {
+    name: 'board-models',
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use('/assets/models/placas', (req, res, next) => {
+        const name = decodeURIComponent((req.url ?? '').split('?')[0]).replace(/^\/+/, '')
+        if (!/^[\w.-]+\.glb$/.test(name)) {
+          next()
+          return
+        }
+        const file = resolve('models-originales/placas', name)
+        if (!existsSync(file)) {
+          next()
+          return
+        }
+        res.setHeader('content-type', 'model/gltf-binary')
+        res.setHeader('content-length', statSync(file).size)
+        createReadStream(file).pipe(res)
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), calibrationSaver()],
+  plugins: [react(), calibrationSaver(), boardModels()],
 })

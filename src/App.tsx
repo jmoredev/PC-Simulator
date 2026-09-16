@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { CALIBRATE } from './calibration'
-import { useGameStore } from './store/useGameStore'
+import { useCurrentStage, useGameStore } from './store/useGameStore'
 import { Scene } from './three/Scene'
 import { CalibrationPanel } from './ui/CalibrationPanel'
 import { ComponentList } from './ui/ComponentList'
+import { ConnectorBar } from './ui/ConnectorBar'
+import { ControlsHelp } from './ui/ControlsHelp'
 import { FinishModal } from './ui/FinishModal'
 import { InfoPanel } from './ui/InfoPanel'
 import { ModeMenu } from './ui/ModeMenu'
@@ -17,7 +19,10 @@ export default function App() {
   const mode = useGameStore((s) => s.mode)
   const selectedId = useGameStore((s) => s.selectedId)
   const wrongFlash = useGameStore((s) => s.wrongFlash)
+  const stage = useCurrentStage()
   const [inspectedId, setInspectedId] = useState<string | null>(null)
+  /** En la fase de conectores los cables salen de una barra inferior. */
+  const cableBar = phase === 'building' && stage.id === 'ports'
 
   useEffect(() => {
     if (!wrongFlash) return
@@ -48,8 +53,10 @@ export default function App() {
               <TopBar />
               <ComponentList onInspect={setInspectedId} />
               <InfoPanel inspectedId={inspectedId} selectedId={selectedId} mode={mode} />
-              <StatusBar />
+              <StatusBar raised={cableBar} />
+              {cableBar && <ConnectorBar />}
               <StageBanner />
+              {phase === 'building' && <ControlsHelp />}
             </>
           )}
 

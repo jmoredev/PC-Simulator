@@ -323,6 +323,80 @@ button {
   max-height: 240px;
 }
 
+/* ---------- calibración: puertos traseros ---------- */
+.calib__ports {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.calib__ports-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.calib__ports-count {
+  font-family: ui-monospace, monospace;
+  color: var(--accent);
+}
+
+.calib__ports-add {
+  display: flex;
+  gap: 6px;
+}
+
+.calib__ports-add select {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.calib__ports-add .calib__slot {
+  flex: none;
+  white-space: nowrap;
+}
+
+.calib__ports-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.calib__ports-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.4);
+  font-size: 12px;
+}
+
+.calib__ports-list span {
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
 .spacer {
   flex: 1;
 }
@@ -564,6 +638,91 @@ button {
   max-width: min(760px, 70vw);
 }
 
+.statusbar--raised {
+  bottom: 96px;
+}
+
+/* ---------- barra de cables (fase de conectores) ---------- */
+.connbar {
+  position: absolute;
+  left: 16px;
+  right: 76px;
+  bottom: 16px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  z-index: 11;
+}
+
+.connbar__items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  width: 100%;
+}
+
+.connbar__items::-webkit-scrollbar {
+  height: 6px;
+}
+
+.connbar__items::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+}
+
+.connbar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 92px;
+  flex: none;
+  padding: 5px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.5);
+  cursor: grab;
+  text-align: center;
+}
+
+.connbar__item:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.14);
+}
+
+.connbar__item--active {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.connbar__item img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.connbar__item span {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+.connbar__dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
 .status-dot {
   width: 9px;
   height: 9px;
@@ -754,6 +913,13 @@ button {
   color: #dcfce7;
 }
 
+/* Punto invisible en el centro de cada zona (lo usan las pruebas e2e). */
+.mount-center {
+  width: 2px;
+  height: 2px;
+  opacity: 0;
+}
+
 .tray-label {
   padding: 5px 12px;
   border-radius: 8px;
@@ -768,6 +934,79 @@ button {
 
 .hint-inline {
   color: var(--warning);
+}
+
+/* ---------- leyenda de controles ---------- */
+.help {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  z-index: 12;
+}
+
+.help__toggle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  color: var(--accent);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.help__toggle:hover {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.help__card {
+  width: 292px;
+  padding: 14px 16px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.help__card h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+}
+
+.help__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.help__list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.help__list b {
+  font-size: 12.5px;
+}
+
+.help__list span {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 @media (max-width: 1100px) {

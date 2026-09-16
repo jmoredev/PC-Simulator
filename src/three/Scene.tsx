@@ -6,27 +6,37 @@ import * as THREE from 'three'
 import {
   COMPONENTS_BY_STAGE,
   COMPONENT_BY_ID,
-  DROP_Y,
   MOUNT_BY_ID,
   MOUNTS_BY_STAGE,
   trayPanelFor,
   trayScaleFor,
 } from '../data/components'
-import { STAGES } from '../data/stages'
+import { STAGES, REAR_CAMERA } from '../data/stages'
 import { useCurrentStage, useGameStore } from '../store/useGameStore'
+import { useCalibrationStore } from '../store/useCalibrationStore'
 import type { ComponentDef, Stage } from '../types'
 import { ComponentVisual } from './ComponentModel'
+import { ConnectorPlug } from './ConnectorPlug'
 import { CALIBRATE, DEBUG } from '../calibration'
 import { CalibrationPicker } from './CalibrationPicker'
 import { DebugGrid } from './DebugGrid'
 import { MountZone } from './MountZone'
 import { StageBoard } from './StageBoard'
-import { StageCase } from './StageCase'
 import { StagePeripherals } from './StagePeripherals'
+import { StagePorts } from './StagePorts'
 
-const DROP_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), -DROP_Y)
 const HIT = new THREE.Vector3()
 const NDC = new THREE.Vector2()
+
+/** Plano sobre el que se proyecta el puntero al arrastrar. */
+function dropPlaneFor(stage: Stage): THREE.Plane {
+  return stage.drop.kind === 'vertical'
+    ? new THREE.Plane(new THREE.Vector3(1, 0, 0), -stage.drop.x)
+    : new THREE.Plane(new THREE.Vector3(0, 1, 0), -stage.drop.y)
+}
+
+/** ¿La fase se juega sobre un plano vertical (chapa trasera de frente)? */
+const isVertical = (stage: Stage) => stage.drop.kind === 'vertical'
 
 function Lights() {
   return (
@@ -94,6 +104,7 @@ function PlacedComponents() {
   const placed = useGameStore((s) => s.placed)
   const stageIndex = useGameStore((s) => s.stageIndex)
   const mounts = MOUNTS_BY_STAGE[STAGES[stageIndex].id]
+  const vertical = isVertical(STAGES[stageIndex])
   return (
     <>
       {mounts.map((mount) => {
@@ -103,7 +114,11 @@ function PlacedComponents() {
         if (!def) return null
         return (
           <group key={mount.id} position={mount.position}>
-            <ComponentVisual def={def} yaw={mount.angle ?? 0} />
+            {vertical && def.category === 'conector' ? (
+              <ConnectorPlug def={def} size={mount.size} />
+            ) : (
+              <ComponentVisual def={def} yaw={mount.angle ?? 0} vertical={vertical} />
+            )}
           </group>
         )
       })}
@@ -148,7 +163,7 @@ function TrayItem({ def }: { def: ComponentDef }) {
       }}
     >
       <group scale={scale}>
-        <ComponentVisual def={def} yaw={MOUNT_BY_ID[def.mountId]?.angle ?? 0} />
+        <ComponentVisual def={def} yaw={MOUNT_BY_ID[def.mountId ?? '']?.angle ?? 0} />
       </group>
       {selected && (
         <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -173,7 +188,7 @@ function Tray({ stage }: { stage: Stage }) {
   )
 }
 
-function DragGhost() {
+function DragGhost({ stage }: { stage: Stage }) {
   const dragging = useGameStore((s) => s.dragging)
   const selectedId = useGameStore((s) => s.selectedId)
   const dragPos = useGameStore((s) => s.dragPos)
@@ -183,16 +198,31 @@ function DragGhost() {
   const def = COMPONENT_BY_ID[selectedId]
   if (!def) return null
 
+  const vertical = isVertical(stage)
   const mount = hoverMountId ? MOUNT_BY_ID[hoverMountId] : null
-  const position: [number, number, number] = mount
-    ? [mount.position[0], mount.position[1] + 0.05, mount.position[2]]
-    : [dragPos[0], DROP_Y + 0.08, dragPos[1]]
+  let position: [number, number, number]
+  if (mount) {
+    position = vertical
+      ? [mount.position[0] - 0.12, mount.position[1], mount.position[2]]
+      : [mount.position[0], mount.position[1] + 0.05, mount.position[2]]
+  } else if (stage.drop.kind === 'vertical') {
+    position = [stage.drop.x - 0.12, dragPos[0], dragPos[1]]
+  } else {
+    position = [dragPos[0], stage.drop.y + 0.08, dragPos[1]]
+  }
 
   return (
     <group position={position}>
-      <ComponentVisual def={def} yaw={mount?.angle ?? MOUNT_BY_ID[def.mountId]?.angle ?? 0} />
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.42, 0.5, 32]} />
+      <ComponentVisual
+        def={def}
+        yaw={mount?.angle ?? MOUNT_BY_ID[def.mountId ?? '']?.angle ?? 0}
+        vertical={vertical}
+      />
+      <mesh
+        position={[0, 0.01, 0]}
+        rotation={vertical ? [0, -Math.PI / 2, 0] : [-Math.PI / 2, 0, 0]}
+      >
+        <ringGeometry args={vertical ? [0.1, 0.13, 32] : [0.42, 0.5, 32]} />
         <meshBasicMaterial
           color={mount ? '#22c55e' : '#38bdf8'}
           transparent
@@ -204,19 +234,22 @@ function DragGhost() {
   )
 }
 
-function DragController() {
+function DragController({ stage }: { stage: Stage }) {
   const dragging = useGameStore((s) => s.dragging)
   const { camera, gl, raycaster } = useThree()
 
   useEffect(() => {
     if (!dragging) return
+    const plane = dropPlaneFor(stage)
     const onMove = (event: PointerEvent) => {
       const rect = gl.domElement.getBoundingClientRect()
       NDC.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
       NDC.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(NDC, camera)
-      const hit = raycaster.ray.intersectPlane(DROP_PLANE, HIT)
-      if (hit) useGameStore.getState().updateDrag(hit.x, hit.z)
+      const hit = raycaster.ray.intersectPlane(plane, HIT)
+      if (!hit) return
+      if (stage.drop.kind === 'vertical') useGameStore.getState().updateDrag(hit.y, hit.z)
+      else useGameStore.getState().updateDrag(hit.x, hit.z)
     }
     const onUp = () => useGameStore.getState().endDrag()
     window.addEventListener('pointermove', onMove)
@@ -225,7 +258,7 @@ function DragController() {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [dragging, camera, gl, raycaster])
+  }, [dragging, camera, gl, raycaster, stage])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -243,11 +276,17 @@ function DragController() {
 
 function CameraRig({ stage }: { stage: Stage }) {
   const dragging = useGameStore((s) => s.dragging)
+  const armed = useCalibrationStore((s) => s.armed)
   const controls = useRef<React.ComponentRef<typeof OrbitControls>>(null)
   const { camera } = useThree()
-  const view = CALIBRATE
-    ? { position: [0, 7.4, 2.0] as [number, number, number], target: [0, 0, 0.1] as [number, number, number] }
-    : stage.camera
+  // Al marcar la chapa trasera o sus puertos, el calibrador se pone de frente.
+  const calibratingRear = armed === 'rear_area' || armed === 'port'
+  const view =
+    CALIBRATE && calibratingRear
+      ? REAR_CAMERA
+      : CALIBRATE
+        ? { position: [0, 7.4, 2.0] as [number, number, number], target: [0, 0, 0.1] as [number, number, number] }
+        : stage.camera
   const desiredPos = useRef(new THREE.Vector3(...view.position))
   const desiredTarget = useRef(new THREE.Vector3(...view.target))
   const animating = useRef(false)
@@ -284,7 +323,7 @@ function CameraRig({ stage }: { stage: Stage }) {
 
 function StageContent({ stage }: { stage: Stage }) {
   if (stage.id === 'board') return <StageBoard />
-  if (stage.id === 'case') return <StageCase />
+  if (stage.id === 'ports') return <StagePorts />
   return <StagePeripherals />
 }
 
@@ -309,12 +348,12 @@ export function Scene() {
       <Lights />
       <Bench stage={stage} />
       <StageContent stage={stage} />
-      <TrayPanel stage={stage} />
+      {!isVertical(stage) && <TrayPanel stage={stage} />}
       <MountZones />
       <PlacedComponents />
-      <Tray stage={stage} />
-      <DragGhost />
-      <DragController />
+      {!isVertical(stage) && <Tray stage={stage} />}
+      <DragGhost stage={stage} />
+      <DragController stage={stage} />
       {DEBUG && <DebugGrid />}
       <CameraRig stage={stage} />
     </>

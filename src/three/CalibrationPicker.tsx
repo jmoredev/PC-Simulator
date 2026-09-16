@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Html } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { BOARD_SLOTS, type Point } from '../calibration'
+import { BOARD_SLOTS, PORT_KINDS, type Point } from '../calibration'
 import { useCalibrationStore } from '../store/useCalibrationStore'
 
 const round = (v: number) => Math.round(v * 1000) / 1000
@@ -33,6 +33,7 @@ export function CalibrationPicker() {
   const { camera, gl, scene } = useThree()
   const armed = useCalibrationStore((s) => s.armed)
   const points = useCalibrationStore((s) => s.points)
+  const ports = useCalibrationStore((s) => s.ports)
   const setPoint = useCalibrationStore((s) => s.setPoint)
 
   useEffect(() => {
@@ -73,6 +74,14 @@ export function CalibrationPicker() {
           />
         )),
       )}
+      {ports.map((port, index) => (
+        <Marker
+          key={`port-${index}`}
+          position={port.point}
+          index={0}
+          label={PORT_KINDS.find((k) => k.kind === port.kind)?.label ?? port.kind}
+        />
+      ))}
     </>
   )
 }

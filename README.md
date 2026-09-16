@@ -10,8 +10,9 @@ didáctica para cada componente.
 
 - **Montaje en 3 fases**, cada una con su propia escena 3D:
   1. **Sobre la placa base**: CPU, disipador, 2× RAM, SSD M.2 y tarjeta gráfica.
-  2. **Dentro de la caja**: se instala la **placa ya montada**, la fuente de
-     alimentación, 2 ventiladores y un disco duro (HDD) en una caja abierta.
+  2. **Parte trasera del PC**: hay que conectar cada cable (HDMI, DisplayPort,
+     DVI, VGA, USB, red, PS/2 y jacks de audio) con su puerto. Algunos cables
+     **no encajan en ningún sitio**: hay que darse cuenta y dejarlos.
   3. **Periféricos**: monitor, teclado, ratón y altavoces a **escala realista**
      junto al PC ya montado.
 - **Modo práctica**: al coger una pieza se ilumina su hueco en verde con el
@@ -45,11 +46,13 @@ npm run models:optimize   # comprime los .glb de public/assets/models
 ```
 ## Controles
 
-- **Arrastrar y soltar**: coge una pieza de la bandeja y llévala a su sitio.
+- **Arrastrar y soltar**: coge una pieza de la bandeja (o, en la fase de
+  conectores, un cable de la barra inferior) y llévala a su sitio.
 - **Clic y clic**: haz clic en una pieza de la bandeja (o de la lista) y luego
   en la zona iluminada (solo en modo práctica).
 - **Ratón**: botón izquierdo para girar la cámara, rueda para acercar/alejar.
 - **Esc**: cancela el arrastre en curso.
+- **Ayuda**: la tarjeta de controles se abre y se cierra con el botón `?`.
 
 ## Desarrollo y ramas
 
@@ -103,19 +106,67 @@ npm run models:optimize -- --backup models-originales
 Los originales sin optimizar se guardan en `models-originales/`, que está
 ignorado por git.
 
+### Varias placas base (sin comprimir)
+
+Cada placa base es un `.glb` **sin optimizar** en `models-originales/placas/`,
+con el nombre del id de la placa:
+
+```
+models-originales/placas/asus-z170-p.glb
+models-originales/placas/b450m-ds3h.glb
+```
+
+Esa carpeta está ignorada por git, así que el modelo **no se comprime ni se sube**
+(y por eso se ve nítido). En desarrollo, Vite lo sirve directamente desde ahí.
+
+Para elegir la placa activa, añade `?board=<id>` a la URL:
+
+```
+http://localhost:5173/?board=b450m-ds3h
+```
+
+El registro de placas está en [`src/data/boards.ts`](src/data/boards.ts). Para
+dar de alta una placa nueva, añade su entrada con su `id`, `size` (dimensión
+mayor en unidades, 1 u ≈ 10 cm) y `rotation`.
+
+### Imágenes de los conectores (fase 2)
+
+Los conectores de la parte trasera no son modelos 3D: son **imágenes PNG** con el
+conector visto de frente y fondo transparente, en
+[`src/assets/connectors/`](src/assets/connectors/). El archivo se llama igual que
+el conector (`hdmi.png`, `usb.png`, `audio-out.png`…) y se tumba sobre el panel.
+
+Los nombres exactos y el formato están en
+[`src/assets/connectors/README.md`](src/assets/connectors/README.md). Si falta un
+PNG, ese conector se dibuja con su forma procedural y todo sigue funcionando.
+
 ### Calibrar una placa nueva
 
-Cada placa base tiene sus huecos en sitios distintos. Para una placa nueva:
+Cada placa tiene los huecos en sitios distintos. Para una placa nueva:
 
 ```bash
 npm run dev
-# abre http://localhost:5173/?calibrate=1
+# abre http://localhost:5173/?calibrate=1&board=<id>
 ```
 
 Se marca el zócalo de la CPU con un clic y cada ranura (RAM ×2, M.2, PCIe) con
-**dos clics, uno en cada extremo**. Al pulsar **Guardar en el proyecto** se
-escribe `.scratch/calibration.json` y esas coordenadas se vuelcan en
-`src/data/components.ts`. El modo solo existe en desarrollo.
+**dos clics, uno en cada extremo**. Después se marcan las dos esquinas de la
+**chapa trasera** (al elegirla, la cámara se pone **de frente** para que quede
+exacta) y, con el selector de *Puertos traseros*, se va eligiendo el tipo de
+conector y clicando sobre cada puerto del modelo.
+
+Al pulsar **Guardar en el proyecto** se escribe
+`.scratch/calibration-<id>.json`, y esas coordenadas se vuelcan en
+`src/data/boards.ts` (huecos, chapa y puertos). El modo solo existe en desarrollo.
+
+Con esos datos, la **fase 2 se genera sola**: un cable por cada tipo de conector
+que tenga la placa y un hueco por puerto. La cámara se pone **de frente a la chapa
+trasera** (así se distingue cada puerto, aunque estén apilados en vertical) y los
+cables, que son **imágenes PNG**, se arrastran desde la **barra inferior de
+cables** hasta su puerto; al conectarlos se dibuja un conector 3D con su
+latiguillo. La placa se sigue viendo en 3D tal y como se montó. Los cables que no
+encajan en ningún puerto de esa placa (USB-C, RJ-11) van como señuelo y no
+cuentan para terminar.
 
 ## Cómo añadir o cambiar componentes
 
@@ -144,14 +195,14 @@ src/
 ├── three/
 │   ├── Scene.tsx        # escena, luces, banco, bandeja, arrastre y cámara
 │   ├── StageBoard.tsx   # fase 1: placa base sobre la alfombrilla
-│   ├── StageCase.tsx    # fase 2: caja abierta con bandeja, bahía y anclajes
+│   ├── StagePorts.tsx   # fase 2: panel de puertos trasero tumbado
 │   ├── StagePeripherals.tsx # fase 3: escritorio y torre terminada
 │   ├── Motherboard.tsx  # placa base y sus zócalos
-│   ├── ComponentModel.tsx # carga .glb + placa ensamblada + fallback
+│   ├── ComponentModel.tsx # carga .glb + auto-fit + fallback
 │   ├── Placeholder.tsx  # geometría procedural de cada componente
 │   ├── MountZone.tsx    # zonas resaltadas de los huecos
 │   └── primitives.tsx   # cajas, cilindros y esferas reutilizables
-├── ui/                  # menú, lista por fases, ficha, progreso y resultados
+├── ui/                  # menú, lista por fases, ficha, progreso, resultados y leyenda
 └── App.tsx              # composición del lienzo y la interfaz
 ```
 

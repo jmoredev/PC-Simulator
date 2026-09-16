@@ -45,7 +45,7 @@ export function InfoPanel({ inspectedId, selectedId, mode }: Props) {
           <div className="info-sub">{def.subtitle}</div>
           <p>{def.description}</p>
           {def.funFact && <div className="info-fact">¿Sabías que…? {def.funFact}</div>}
-          {mode === 'practice' && (
+          {mode === 'practice' && def.mountId && (
             <div className="info-target">
               Dónde va: <b>{MOUNTS.find((m) => m.id === def.mountId)?.label}</b>
             </div>

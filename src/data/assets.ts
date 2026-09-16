@@ -1,5 +1,4 @@
 import type { ComponentDef } from '../types'
-
 /**
  * Los modelos .glb de /public/assets/models están activados por defecto.
  * Para trabajar solo con las formas procedurales (más rápido), crea un .env
@@ -12,11 +11,35 @@ import type { ComponentDef } from '../types'
  */
 export const USE_MODELS = import.meta.env.VITE_USE_MODELS !== 'false'
 
-export function modelUrl(def: ComponentDef): string | undefined {
+/** Mínimo necesario para localizar el modelo .glb de una pieza. */
+export interface ModelSpec {
+  id: string
+  model?: string
+  procedural?: boolean
+}
+
+export function modelUrl(def: ModelSpec): string | undefined {
+  if (def.procedural) return undefined
   if (def.model) return def.model
   return USE_MODELS ? `/assets/models/${def.id}.glb` : undefined
 }
 
 export function textureUrl(def: ComponentDef): string | undefined {
   return def.texture
+}
+
+/**
+ * Imágenes de los conectores de la fase 2. Se llaman igual que su `kind`
+ * (`hdmi.png`, `audio-out.png`…) y viven en `src/assets/connectors/`.
+ * El glob solo devuelve las que existen: si falta un PNG, esa pieza usa su
+ * forma procedural y no se rompe nada.
+ */
+const CONNECTOR_IMAGES = import.meta.glob('../assets/connectors/*.png', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>
+
+export function connectorImageUrl(kind: string): string | undefined {
+  return CONNECTOR_IMAGES[`../assets/connectors/${kind}.png`]
 }

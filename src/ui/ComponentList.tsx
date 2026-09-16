@@ -8,6 +8,7 @@ interface Props {
   onInspect: (id: string | null) => void
 }
 
+/** Lista de fases: indica qué piezas quedan en cada una. */
 export function ComponentList({ onInspect }: Props) {
   const placed = useGameStore((s) => s.placed)
   const selectedId = useGameStore((s) => s.selectedId)

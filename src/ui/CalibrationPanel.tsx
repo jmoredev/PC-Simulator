@@ -1,17 +1,23 @@
 import { useState } from 'react'
-import { BOARD_SLOTS, deriveLayout, type Point } from '../calibration'
+import { BOARD_SLOTS, PORT_KINDS, PORT_SLOT, deriveLayout, type Point } from '../calibration'
+import { BOARD_ID } from '../data/boards'
 import { useCalibrationStore } from '../store/useCalibrationStore'
 
 export function CalibrationPanel() {
   const armed = useCalibrationStore((s) => s.armed)
   const points = useCalibrationStore((s) => s.points)
+  const ports = useCalibrationStore((s) => s.ports)
+  const portKind = useCalibrationStore((s) => s.portKind)
   const arm = useCalibrationStore((s) => s.arm)
+  const setPortKind = useCalibrationStore((s) => s.setPortKind)
+  const removeLastPort = useCalibrationStore((s) => s.removeLastPort)
   const clear = useCalibrationStore((s) => s.clear)
-  const [boardId, setBoardId] = useState('z170-p')
+  const [boardId, setBoardId] = useState(BOARD_ID)
   const [status, setStatus] = useState('')
 
-  const layout = deriveLayout(points)
-  const payload = { boardId, points, layout }
+  const layout = deriveLayout(points, ports)
+  const payload = { boardId, points, ports, layout }
+  const markingPort = armed === PORT_SLOT
 
   const save = async () => {
     setStatus('Guardando…')
@@ -75,6 +81,43 @@ export function CalibrationPanel() {
             </button>
           )
         })}
+      </div>
+
+      <div className="calib__ports">
+        <div className="calib__ports-head">
+          <span>Puertos traseros</span>
+          <span className="calib__ports-count">{ports.length}</span>
+        </div>
+        <div className="calib__ports-add">
+          <select value={portKind} onChange={(e) => setPortKind(e.target.value as typeof portKind)}>
+            {PORT_KINDS.map((p) => (
+              <option key={p.kind} value={p.kind}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+          <button
+            className={`calib__slot${markingPort ? ' calib__slot--armed' : ''}`}
+            onClick={() => arm(markingPort ? null : PORT_SLOT)}
+          >
+            {markingPort ? 'Haz clic en el puerto…' : 'Marcar puerto'}
+          </button>
+        </div>
+        {ports.length > 0 && (
+          <ul className="calib__ports-list">
+            {ports.map((p, i) => (
+              <li key={`${p.kind}-${i}`}>
+                <b>{PORT_KINDS.find((k) => k.kind === p.kind)?.label ?? p.kind}</b>
+                <span>{p.point.map((v) => v.toFixed(2)).join(', ')}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {ports.length > 0 && (
+          <button className="btn btn--ghost" onClick={removeLastPort}>
+            Borrar el último puerto
+          </button>
+        )}
       </div>
 
       <div className="calib__actions">

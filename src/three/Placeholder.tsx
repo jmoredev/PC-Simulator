@@ -9,8 +9,6 @@ import { Ball, Box, Cyl } from './primitives'
  */
 export function Placeholder({ def }: { def: ComponentDef }) {
   switch (def.kind) {
-    case 'motherboard':
-      return <MotherboardShape />
     case 'cpu':
       return <CpuShape accent={def.color} />
     case 'cooler':
@@ -19,14 +17,8 @@ export function Placeholder({ def }: { def: ComponentDef }) {
       return <RamShape accent={def.color} />
     case 'ssd':
       return <SsdShape accent={def.color} />
-    case 'hdd':
-      return <HddShape accent={def.color} />
     case 'gpu':
       return <GpuShape accent={def.color} />
-    case 'psu':
-      return <PsuShape accent={def.color} />
-    case 'fan':
-      return <FanShape accent={def.color} />
     case 'monitor':
       return <MonitorShape accent={def.color} />
     case 'keyboard':
@@ -35,19 +27,66 @@ export function Placeholder({ def }: { def: ComponentDef }) {
       return <MouseShape accent={def.color} />
     case 'speaker':
       return <SpeakersShape accent={def.color} />
+    case 'audio-out':
+    case 'audio-in':
+    case 'audio-mic':
+      return <JackShape accent={def.color} />
     default:
-      return <Box s={[0.5, 0.5, 0.5]} p={[0, 0.25, 0]} c={def.color} />
+      return <CableShape kind={def.kind} accent={def.color} />
   }
 }
 
-function MotherboardShape() {
+/** Anchura del conector (cara que se clava en el puerto). */
+const CABLE_WIDTH: Record<string, number> = {
+  ps2: 0.32,
+  usb: 0.36,
+  'usb-c': 0.3,
+  lan: 0.36,
+  rj11: 0.28,
+  hdmi: 0.38,
+  displayport: 0.34,
+  dvi: 0.4,
+  vga: 0.42,
+}
+
+/** Conector de cable: carcasa, cara de color y latiguillo. */
+function CableShape({ kind, accent }: { kind: string; accent: string }) {
+  const w = CABLE_WIDTH[kind] ?? 0.3
+  const h = 0.18
+  const d = 0.17
   return (
     <group>
-      <Box s={[3.05, 0.16, 2.44]} p={[0, -0.08, 0]} c="#14532d" r={0.75} />
-      <Box s={[3.05, 0.02, 2.44]} p={[0, 0.005, 0]} c="#166534" r={0.7} />
-      <Box s={[0.9, 0.03, 0.7]} p={[0.85, 0.03, -0.85]} c="#1f2937" r={0.5} />
-      <Box s={[0.7, 0.02, 0.5]} p={[-1.1, 0.02, -0.9]} c="#1f2937" r={0.5} />
-      <Box s={[0.5, 0.01, 0.5]} p={[0.2, 0.02, 0.9]} c="#111827" r={0.4} />
+      <Box s={[w, h, d]} p={[0, h / 2, 0]} c="#2b323d" m={0.3} r={0.5} />
+      <Box s={[w * 0.72, 0.025, d * 0.72]} p={[0, h + 0.012, 0]} c={accent} m={0.45} r={0.45} />
+      <Cyl
+        rt={0.035}
+        rb={0.035}
+        h={0.42}
+        p={[0, h / 2, d / 2 + 0.2]}
+        rot={[Math.PI / 2, 0, 0]}
+        c="#111722"
+        r={0.6}
+      />
+    </group>
+  )
+}
+
+/** Clavija de audio de 3,5 mm (jack). */
+function JackShape({ accent }: { accent: string }) {
+  return (
+    <group>
+      <Cyl rt={0.075} rb={0.075} h={0.1} p={[0, 0.05, 0]} c="#cbd5e1" m={0.8} r={0.3} />
+      <Cyl rt={0.055} rb={0.055} h={0.08} p={[0, 0.14, 0]} c={accent} m={0.6} r={0.4} />
+      <Cyl rt={0.022} rb={0.022} h={0.14} p={[0, 0.25, 0]} c="#94a3b8" m={0.9} r={0.3} />
+      <Cyl
+        rt={0.032}
+        rb={0.032}
+        h={0.7}
+        p={[0, 0.05, 0.4]}
+        rot={[Math.PI / 2, 0, 0]}
+        c="#111722"
+        r={0.6}
+      />
     </group>
   )
 }
@@ -115,18 +154,6 @@ function SsdShape({ accent }: { accent: string }) {
   )
 }
 
-function HddShape({ accent }: { accent: string }) {
-  return (
-    <group>
-      <Box s={[1.02, 0.26, 1.47]} p={[0, 0.13, 0]} c={accent} m={0.85} r={0.35} />
-      <Box s={[0.92, 0.02, 1.35]} p={[0, 0.27, 0]} c="#8b96a5" m={0.8} r={0.35} />
-      <Box s={[0.72, 0.01, 1.05]} p={[-0.05, 0.285, 0.05]} c="#243044" r={0.5} />
-      <Box s={[0.5, 0.08, 0.14]} p={[0, 0.13, 0.74]} c="#15181d" r={0.4} />
-      <Box s={[0.9, 0.05, 0.03]} p={[0, 0.16, -0.745]} c="#2f6b3d" r={0.4} />
-    </group>
-  )
-}
-
 function GpuShape({ accent }: { accent: string }) {
   return (
     <group>
@@ -168,50 +195,6 @@ function GpuShape({ accent }: { accent: string }) {
         m={0.7}
       />
       <Box s={[2.3, 0.1, 0.1]} p={[0, 0.05, 0.08]} c="#e0bd55" m={0.95} r={0.3} />
-    </group>
-  )
-}
-
-function PsuShape({ accent }: { accent: string }) {
-  return (
-    <group>
-      <Box s={[1.5, 0.86, 1.6]} p={[0, 0.43, 0]} c={accent} m={0.6} r={0.4} />
-      <Cyl rt={0.62} rb={0.62} h={0.05} p={[0, 0.88, 0]} c="#15171a" r={0.6} />
-      <Box s={[0.9, 0.02, 0.9]} p={[0, 0.9, 0]} c="#0d0f12" r={0.4} />
-      <Box s={[1.5, 0.12, 0.28]} p={[0, 0.55, -0.72]} c="#15171a" r={0.5} />
-      <Box s={[0.1, 0.1, 0.1]} p={[0, 0.5, 0.81]} c="#d9b44a" m={0.9} r={0.3} />
-    </group>
-  )
-}
-
-function FanShape({ accent }: { accent: string }) {
-  const blades = useMemo(() => Array.from({ length: 7 }, (_, i) => (i * Math.PI * 2) / 7), [])
-  return (
-    <group>
-      <mesh position={[0, 0.12, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-        <torusGeometry args={[0.5, 0.08, 8, 28]} />
-        <meshStandardMaterial color={accent} metalness={0.4} roughness={0.5} />
-      </mesh>
-      {[
-        [-0.5, -0.5],
-        [0.5, -0.5],
-        [-0.5, 0.5],
-        [0.5, 0.5],
-      ].map(([x, z], i) => (
-        <Box key={i} s={[0.16, 0.22, 0.16]} p={[x, 0.11, z]} c={accent} r={0.6} />
-      ))}
-      {blades.map((a, i) => (
-        <Box
-          key={i}
-          s={[0.34, 0.02, 0.12]}
-          p={[Math.cos(a) * 0.32, 0.13, Math.sin(a) * 0.32]}
-          rot={[0, -a, 0.25]}
-          c="#3b414a"
-          r={0.5}
-        />
-      ))}
-      <Cyl rt={0.14} rb={0.14} h={0.26} p={[0, 0.13, 0]} c="#0f1114" r={0.5} />
-      <Cyl rt={0.05} rb={0.05} h={0.28} p={[0, 0.15, 0]} c={accent} m={0.6} />
     </group>
   )
 }

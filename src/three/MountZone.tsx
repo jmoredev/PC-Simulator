@@ -3,7 +3,7 @@ import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { COMPONENT_BY_ID } from '../data/components'
-import { useGameStore } from '../store/useGameStore'
+import { useCurrentStage, useGameStore } from '../store/useGameStore'
 import type { MountPoint } from '../types'
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
 
 /** Zona resaltable de un punto de montaje. */
 export function MountZone({ mount }: Props) {
+  const stage = useCurrentStage()
   const mode = useGameStore((s) => s.mode)
   const selectedId = useGameStore((s) => s.selectedId)
   const hoverMountId = useGameStore((s) => s.hoverMountId)
@@ -20,6 +21,7 @@ export function MountZone({ mount }: Props) {
   const placeInto = useGameStore((s) => s.placeInto)
   const group = useRef<THREE.Group>(null)
 
+  const vertical = stage.drop.kind === 'vertical'
   const def = selectedId ? COMPONENT_BY_ID[selectedId] : null
   const isCandidate = !!def && !placed[mount.id] && mount.accepts.includes(def.kind)
   const isHover = hoverMountId === mount.id
@@ -30,6 +32,7 @@ export function MountZone({ mount }: Props) {
 
   const color = isWrong ? '#ef4444' : isHover ? '#22c55e' : '#34d399'
   const [w, d] = mount.size
+  const lift = vertical ? -0.012 : 0.006
 
   useFrame(({ clock }) => {
     if (!group.current) return
@@ -53,8 +56,14 @@ export function MountZone({ mount }: Props) {
   return (
     <group
       ref={group}
-      position={[mount.position[0], mount.position[1] + 0.006, mount.position[2]]}
-      rotation={[-Math.PI / 2, 0, -(mount.angle ?? 0)]}
+      position={[
+        mount.position[0] + lift,
+        mount.position[1] + (vertical ? 0 : 0.006),
+        mount.position[2],
+      ]}
+      rotation={
+        vertical ? [0, -Math.PI / 2, 0] : [-Math.PI / 2, 0, -(mount.angle ?? 0)]
+      }
       onPointerDown={(event) => {
         if (!showInPractice || !isCandidate) return
         event.stopPropagation()
@@ -80,7 +89,7 @@ export function MountZone({ mount }: Props) {
       {mode === 'practice' && (
         <Html
           center
-          position={[0, 0, Math.min(d * 0.5 + 0.18, 0.6)]}
+          position={[0, 0, Math.min(d * 0.5 + 0.2, 0.5)]}
           style={{ pointerEvents: 'none' }}
         >
           <div className={`mount-label${isHover ? ' mount-label--active' : ''}`}>
@@ -88,6 +97,10 @@ export function MountZone({ mount }: Props) {
           </div>
         </Html>
       )}
+      {/* Punto invisible en el centro de la zona: lo usan las pruebas e2e. */}
+      <Html center position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="mount-center" />
+      </Html>
     </group>
   )
 }
