@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { Html, OrbitControls } from '@react-three/drei'
+import { Html, OrbitControls, Environment, Lightformer } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -59,18 +59,36 @@ function Lights() {
   )
 }
 
+/**
+ * Entorno de estudio para los reflejos. Algunos modelos traen materiales
+ * metálicos (la chapa de la placa) y sin entorno se verían planos y apagados.
+ * Se genera con luces, sin descargar ningún HDRI.
+ */
+function StudioEnvironment() {
+  return (
+    <Environment resolution={64} frames={1}>
+      <Lightformer form="rect" intensity={2.5} position={[0, 5, 4]} scale={[10, 5, 1]} target={[0, 0, 0]} />
+      <Lightformer form="rect" intensity={1.2} position={[-5, 3, -3]} scale={[8, 4, 1]} target={[0, 0, 0]} />
+      <Lightformer form="ring" intensity={2} position={[4, 3, 2]} scale={5} />
+    </Environment>
+  )
+}
+
 function Bench({ stage }: { stage: Stage }) {
   const { width, depth, center } = stage.bench
   const grid = Math.max(width, depth)
+  // La cara superior queda un poco por debajo de y=0 para que nada que se
+  // apoye en el banco (piezas, alfombrilla, caras planas de los modelos)
+  // quede coplanario con él y parpadee.
   return (
     <group>
-      <mesh position={[center[0], -0.16, center[1]]} receiveShadow>
+      <mesh position={[center[0], -0.172, center[1]]} receiveShadow>
         <boxGeometry args={[width, 0.32, depth]} />
         <meshStandardMaterial color="#252a33" metalness={0.2} roughness={0.85} />
       </mesh>
       <gridHelper
         args={[grid, Math.round(grid * 2), '#3b4453', '#2e3542']}
-        position={[center[0], 0.004, center[1]]}
+        position={[center[0], -0.002, center[1]]}
       />
     </group>
   )
@@ -338,6 +356,7 @@ export function Scene() {
     return (
       <>
         <Lights />
+        <StudioEnvironment />
         <Bench stage={stage} />
         <StageBoard />
         <DebugGrid />
@@ -350,6 +369,7 @@ export function Scene() {
   return (
     <>
       <Lights />
+      <StudioEnvironment />
       <Bench stage={stage} />
       <StageContent stage={stage} />
       {!isVertical(stage) && <TrayPanel stage={stage} />}

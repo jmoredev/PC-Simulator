@@ -112,8 +112,8 @@ Cada placa base es un `.glb` **sin optimizar** en `models-originales/placas/`,
 con el nombre del id de la placa:
 
 ```
-models-originales/placas/asus-z170-p.glb
-models-originales/placas/b450m-ds3h.glb
+models-originales/placas/motherboard-01.glb
+models-originales/placas/motherboard-02.glb
 ```
 
 Esa carpeta está ignorada por git, así que el modelo **no se comprime ni se sube**
@@ -122,7 +122,7 @@ Esa carpeta está ignorada por git, así que el modelo **no se comprime ni se su
 Para elegir la placa activa, añade `?board=<id>` a la URL:
 
 ```
-http://localhost:5173/?board=b450m-ds3h
+http://localhost:5173/?board=motherboard-02
 ```
 
 El registro de placas está en [`src/data/boards.ts`](src/data/boards.ts). Para
