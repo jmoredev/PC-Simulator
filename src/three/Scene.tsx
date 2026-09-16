@@ -17,7 +17,8 @@ import { useCalibrationStore } from '../store/useCalibrationStore'
 import type { ComponentDef, Stage } from '../types'
 import { ComponentVisual } from './ComponentModel'
 import { ConnectorPlug } from './ConnectorPlug'
-import { CALIBRATE, DEBUG } from '../calibration'
+import { CALIBRATE, DEBUG, rearCameraFrom } from '../calibration'
+import { BOARD } from '../data/boards'
 import { CalibrationPicker } from './CalibrationPicker'
 import { DebugGrid } from './DebugGrid'
 import { MountZone } from './MountZone'
@@ -277,16 +278,19 @@ function DragController({ stage }: { stage: Stage }) {
 function CameraRig({ stage }: { stage: Stage }) {
   const dragging = useGameStore((s) => s.dragging)
   const armed = useCalibrationStore((s) => s.armed)
+  const points = useCalibrationStore((s) => s.points)
   const controls = useRef<React.ComponentRef<typeof OrbitControls>>(null)
   const { camera } = useThree()
+  const TOP_VIEW = {
+    position: [0, 7.4, 2.0] as [number, number, number],
+    target: [0, 0, 0.1] as [number, number, number],
+  }
   // Al marcar la chapa trasera o sus puertos, el calibrador se pone de frente.
+  // Si la placa aún no tiene chapa registrada, la cámara sale de los dos puntos
+  // que se acaban de marcar.
   const calibratingRear = armed === 'rear_area' || armed === 'port'
-  const view =
-    CALIBRATE && calibratingRear
-      ? REAR_CAMERA
-      : CALIBRATE
-        ? { position: [0, 7.4, 2.0] as [number, number, number], target: [0, 0, 0.1] as [number, number, number] }
-        : stage.camera
+  const rearCalView = rearCameraFrom(points) ?? (BOARD.rear ? REAR_CAMERA : TOP_VIEW)
+  const view = CALIBRATE ? (calibratingRear ? rearCalView : TOP_VIEW) : stage.camera
   const desiredPos = useRef(new THREE.Vector3(...view.position))
   const desiredTarget = useRef(new THREE.Vector3(...view.target))
   const animating = useRef(false)

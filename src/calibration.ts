@@ -100,6 +100,36 @@ export interface LinearSlot {
 
 const round = (v: number) => Math.round(v * 1000) / 1000
 
+/**
+ * Cámara de frente a la chapa a partir de las dos esquinas que se acaban de
+ * marcar. Así, en una placa nueva, al marcar el panel la cámara se gira sola
+ * para poder clicar los puertos con precisión.
+ */
+export function rearCameraFrom(
+  points: Record<string, Point[]>,
+): { position: Point; target: Point } | null {
+  const pts = points['rear_area']
+  if (!pts || pts.length < 2) return null
+  const [a, b] = pts
+  const center: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]
+  const dx = b[0] - a[0]
+  const dz = b[2] - a[2]
+  const len = Math.hypot(dx, dz) || 0.5
+  // Normal de la chapa en el plano XZ, apuntando hacia fuera de la placa
+  // (la placa está centrada en el origen).
+  let nx = -dz / len
+  let nz = dx / len
+  if (nx * center[0] + nz * center[2] < 0) {
+    nx = -nx
+    nz = -nz
+  }
+  const dist = Math.max(1.3, len * 1.1)
+  return {
+    position: [center[0] + nx * dist, center[1] + dist * 0.5, center[2] + nz * dist],
+    target: center,
+  }
+}
+
 /** Centro, ángulo y longitud de una ranura marcada por sus dos extremos. */
 function linearFrom(pts: Point[] | undefined): LinearSlot | null {
   if (!pts || pts.length < 2) return null
