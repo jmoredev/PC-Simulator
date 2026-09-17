@@ -12,7 +12,7 @@ import {
   trayScaleFor,
 } from '../data/components'
 import { STAGES, REAR_CAMERA } from '../data/stages'
-import { useCurrentStage, useGameStore } from '../store/useGameStore'
+import { useCurrentStage, useGameStore, placedInStage } from '../store/useGameStore'
 import { useCalibrationStore } from '../store/useCalibrationStore'
 import type { ComponentDef, Stage } from '../types'
 import { ComponentVisual } from './ComponentModel'
@@ -23,6 +23,7 @@ import { CalibrationPicker } from './CalibrationPicker'
 import { DebugGrid } from './DebugGrid'
 import { MountZone } from './MountZone'
 import { StageBoard } from './StageBoard'
+import { StageIdentify } from './StageIdentify'
 import { StagePeripherals } from './StagePeripherals'
 import { StagePorts } from './StagePorts'
 
@@ -122,8 +123,11 @@ function TrayPanel({ stage }: { stage: Stage }) {
 function PlacedComponents() {
   const placed = useGameStore((s) => s.placed)
   const stageIndex = useGameStore((s) => s.stageIndex)
-  const mounts = MOUNTS_BY_STAGE[STAGES[stageIndex].id]
-  const vertical = isVertical(STAGES[stageIndex])
+  const stage = STAGES[stageIndex]
+  const mounts = MOUNTS_BY_STAGE[stage.id]
+  const vertical = isVertical(stage)
+  // En la identificación no se deja la pieza encima: el cartel se marca en verde.
+  if (stage.id === 'identify') return null
   return (
     <>
       {mounts.map((mount) => {
@@ -161,7 +165,9 @@ function TrayItem({ def }: { def: ComponentDef }) {
   const selected = useGameStore((s) => s.selectedId === def.id)
   const scale = trayScaleFor(def)
   const beginDrag = useGameStore((s) => s.beginDrag)
-  const surfaceY = STAGES.find((s) => s.id === def.stage)?.tray.surfaceY ?? 0.11
+  const stage = useCurrentStage()
+  const [x, z] =
+    stage.id === 'identify' ? (def.identifyPos ?? def.trayPos) : def.trayPos
 
   const handlePointerDown = (event: ThreeEvent<PointerEvent>) => {
     if (useGameStore.getState().dragging) return
@@ -171,7 +177,7 @@ function TrayItem({ def }: { def: ComponentDef }) {
 
   return (
     <group
-      position={[def.trayPos[0], surfaceY, def.trayPos[1]]}
+      position={[x, stage.tray.surfaceY, z]}
       onPointerDown={handlePointerDown}
       onPointerOver={(e) => {
         e.stopPropagation()
@@ -196,7 +202,8 @@ function TrayItem({ def }: { def: ComponentDef }) {
 
 function Tray({ stage }: { stage: Stage }) {
   const placed = useGameStore((s) => s.placed)
-  const placedIds = new Set(Object.values(placed))
+  const stageIndex = useGameStore((s) => s.stageIndex)
+  const placedIds = placedInStage(placed, stageIndex)
   const remaining = COMPONENTS_BY_STAGE[stage.id].filter((c) => !placedIds.has(c.id))
   return (
     <>
@@ -344,6 +351,7 @@ function CameraRig({ stage }: { stage: Stage }) {
 }
 
 function StageContent({ stage }: { stage: Stage }) {
+  if (stage.id === 'identify') return <StageIdentify />
   if (stage.id === 'board') return <StageBoard />
   if (stage.id === 'ports') return <StagePorts />
   return <StagePeripherals />
@@ -372,7 +380,7 @@ export function Scene() {
       <StudioEnvironment />
       <Bench stage={stage} />
       <StageContent stage={stage} />
-      {!isVertical(stage) && <TrayPanel stage={stage} />}
+      {!isVertical(stage) && stage.id !== 'identify' && <TrayPanel stage={stage} />}
       <MountZones />
       <PlacedComponents />
       {!isVertical(stage) && <Tray stage={stage} />}

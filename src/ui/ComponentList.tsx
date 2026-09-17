@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
 import { COMPONENTS_BY_STAGE } from '../data/components'
 import { STAGES } from '../data/stages'
-import { useGameStore } from '../store/useGameStore'
+import { placedInStage, useGameStore } from '../store/useGameStore'
 import type { ComponentDef } from '../types'
 
 interface Props {
@@ -14,14 +14,18 @@ export function ComponentList({ onInspect }: Props) {
   const selectedId = useGameStore((s) => s.selectedId)
   const stageIndex = useGameStore((s) => s.stageIndex)
   const select = useGameStore((s) => s.select)
-  const placedIds = new Set(Object.values(placed))
   const currentStage = STAGES[Math.min(stageIndex, STAGES.length - 1)].id
 
-  const renderGroup = (title: string, items: ComponentDef[], active: boolean) => (
+  const renderGroup = (
+    title: string,
+    items: ComponentDef[],
+    active: boolean,
+    done: Set<string>,
+  ) => (
     <>
       <div className="comp-cat">{title}</div>
       {items.map((def) => {
-        const isPlaced = placedIds.has(def.id)
+        const isPlaced = done.has(def.id)
         const isActive = selectedId === def.id
         return (
           <button
@@ -55,6 +59,7 @@ export function ComponentList({ onInspect }: Props) {
                 `${stage.index + 1}. ${stage.title}`,
                 COMPONENTS_BY_STAGE[stage.id],
                 stage.id === currentStage,
+                placedInStage(placed, stage.index),
               )}
             </div>
           </Fragment>

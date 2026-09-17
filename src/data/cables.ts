@@ -130,4 +130,4 @@ export const CABLES: Partial<Record<ComponentKind, CableDef>> = {
 }
 
 /** Cables que no encajan en ningún puerto: obligan a razonar. */
-export const DECOY_CABLES: ComponentKind[] = ['usb-c', 'rj11']
+export const DECOY_CABLES: ComponentKind[] = ['usb-c']

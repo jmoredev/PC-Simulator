@@ -146,9 +146,20 @@ export const BOARDS: BoardDef[] = [
 
 export const DEFAULT_BOARD_ID = BOARDS[0].id
 
-/** Ruta con la que el servidor de desarrollo sirve el modelo sin comprimir. */
+/**
+ * `?models=optimized` usa los `.glb` comprimidos (los que se publican en la web)
+ * en lugar de los originales de `models-originales/`, para poder comparar la
+ * calidad antes de subirlos.
+ */
+export const OPTIMIZED_MODELS =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('models') === 'optimized'
+
+/** Ruta del modelo: la original en desarrollo y la publicada en producción. */
 export function boardModelUrl(board: BoardDef): string {
-  return board.model ?? `/assets/models/placas/${board.id}.glb`
+  if (board.model) return board.model
+  const path = `/assets/models/placas/${board.id}.glb`
+  return OPTIMIZED_MODELS ? `${path}?optimized=1` : path
 }
 
 function boardIdFromUrl(): string | null {

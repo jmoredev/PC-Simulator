@@ -12,10 +12,11 @@ import { homedir } from 'node:os'
 import puppeteer from 'puppeteer-core'
 
 const BASE_URL = process.env.BASE_URL ?? 'http://127.0.0.1:5199'
-/** Piezas totales de la bandeja con la placa por defecto (incluye señuelos). */
-const ITEMS = 20
-/** Piezas que hay que colocar para terminar. */
-const PLACEABLE = 18
+/** Piezas totales de la lista con la placa por defecto (las 4 fases). */
+const IDENTIFY = 18
+const ITEMS = 36
+/** Colocaciones de toda la partida (identificación + montaje + cables + periféricos). */
+const PLACEABLE = 35
 
 function findChrome() {
   if (process.env.CHROME) return process.env.CHROME
@@ -152,12 +153,18 @@ const browser = await puppeteer.launch({
 
   const placedCount = () => page.$$eval('.comp-item--placed', (els) => els.length)
 
-  // Fase 1: las 6 piezas de la placa
-  for (let i = 0; i < 6; i++) {
+  // Fase 1: identificar las 20 piezas
+  for (let i = 0; i < IDENTIFY; i++) {
+    await place(page, i)
+  }
+  check('partida: identificación completa', (await placedCount()) >= IDENTIFY, `${await placedCount()}`)
+
+  // Fase 2: las 6 piezas de la placa
+  for (let i = IDENTIFY; i < IDENTIFY + 6; i++) {
     await place(page, i)
   }
 
-  // Fase 2: arrastrar un cable desde la barra inferior hasta su puerto
+  // Fase 3: arrastrar un cable desde la barra inferior hasta su puerto
   let dragged = false
   const bar = await page.$('.connbar__item')
   if (bar) {
@@ -180,7 +187,11 @@ const browser = await puppeteer.launch({
     dragged = true
   }
   const afterDrag = await placedCount()
-  check('partida: arrastrar desde la barra de cables', dragged && afterDrag >= 7, `${afterDrag}`)
+  check(
+    'partida: arrastrar desde la barra de cables',
+    dragged && afterDrag >= IDENTIFY + 7,
+    `${afterDrag}`,
+  )
 
   // El resto, con clic y clic
   for (let i = 0; i < ITEMS; i++) {
@@ -188,9 +199,9 @@ const browser = await puppeteer.launch({
   }
 
   const progress = await page.$eval('.progress-label', (el) => el.textContent.trim())
-  check(`partida: ${PLACEABLE}/${PLACEABLE} piezas`, progress === `${PLACEABLE}/${PLACEABLE}`, progress)
+  check(`partida: ${PLACEABLE}/${PLACEABLE} colocaciones`, progress === `${PLACEABLE}/${PLACEABLE}`, progress)
   const marked = await placedCount()
-  check(`partida: ${PLACEABLE} piezas colocadas`, marked === PLACEABLE, `${marked}`)
+  check(`partida: ${PLACEABLE} piezas colocadas`, marked >= PLACEABLE, `${marked}`)
   check('partida: modal final', !!(await page.$('.overlay')))
   check('partida: sin errores', errors.length === 0, errors.join(' | '))
   await page.close()

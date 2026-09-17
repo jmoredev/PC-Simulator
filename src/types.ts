@@ -29,8 +29,8 @@ export type GameMode = 'practice' | 'exam'
 
 export type Phase = 'menu' | 'building' | 'finished'
 
-/** Fases del montaje: sobre la placa, conexiones traseras y periféricos. */
-export type StageId = 'board' | 'ports' | 'peripherals'
+/** Fases: identificación, montaje en la placa, conexiones traseras y periféricos. */
+export type StageId = 'identify' | 'board' | 'ports' | 'peripherals'
 
 /** Plano sobre el que se proyecta el puntero y ejes de colocación. */
 export type DropPlane =
@@ -98,6 +98,8 @@ export interface ComponentDef {
   size: number
   /** [x, z] dentro de la bandeja de componentes. */
   trayPos: [number, number]
+  /** [x, z] en la mesa de la fase de identificación. */
+  identifyPos?: [number, number]
   /** Color de acento en la interfaz y en el placeholder. */
   color: string
   /** Pieza que sobra: no encaja en ningún hueco y no cuenta para acabar. */

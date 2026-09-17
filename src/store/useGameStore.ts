@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 import {
-  COMPONENTS_BY_STAGE,
   COMPONENT_BY_ID,
   MOUNTS_BY_STAGE,
-  TOTAL_STEPS,
+  STAGE_STEPS,
+  shuffleLayout,
 } from '../data/components'
 import { STAGES } from '../data/stages'
 import type { GameMode, MountPoint, Phase, Stage, StageId, Vec3 } from '../types'
@@ -29,6 +29,8 @@ interface State {
   start: (mode: GameMode) => void
   reset: () => void
   backToMenu: () => void
+  /** Salta a la siguiente fase (solo en práctica). */
+  skipStage: () => void
   select: (id: string | null) => void
   beginDrag: (id: string, a: number, b: number) => void
   updateDrag: (a: number, b: number) => void
@@ -57,15 +59,27 @@ function mountsOf(stageIndex: number) {
 }
 
 /**
- * ¿Está completa la fase? Cuenta las piezas que hay que colocar (los cables
- * señuelo no cuentan, y puede haber más huecos que cables: p. ej. varios
- * puertos USB que valen indistintamente).
+ * ¿Está completa la fase? Se cuentan las piezas colocadas **en esta fase**
+ * (no las de fases anteriores: la misma pieza puede colocarse en varias).
  */
 function stageProgress(placed: Record<string, string>, stageIndex: number) {
-  const defs = COMPONENTS_BY_STAGE[STAGES[stageIndex].id].filter((d) => !d.decoy)
-  const placedIds = new Set(Object.values(placed))
-  const done = defs.filter((def) => placedIds.has(def.id)).length
-  return { done, total: defs.length, complete: done === defs.length }
+  const ids = new Set(mountsOf(stageIndex).map((m) => m.id))
+  const filled = Object.keys(placed).filter((mountId) => ids.has(mountId)).length
+  const total = STAGE_STEPS[STAGES[stageIndex].id]
+  return { done: Math.min(filled, total), total, complete: filled >= total }
+}
+
+/** Piezas (ids) ya colocadas en la fase indicada. */
+export function placedInStage(
+  placed: Record<string, string>,
+  stageIndex: number,
+): Set<string> {
+  const ids = new Set(mountsOf(stageIndex).map((m) => m.id))
+  return new Set(
+    Object.entries(placed)
+      .filter(([mountId]) => ids.has(mountId))
+      .map(([, componentId]) => componentId),
+  )
 }
 
 /**
@@ -77,10 +91,7 @@ function advanceAfterPlace(placed: Record<string, string>, stageIndex: number) {
   if (!complete) return {}
   const isLast = stageIndex >= STAGES.length - 1
   if (isLast) {
-    if (Object.keys(placed).length >= TOTAL_STEPS) {
-      return { phase: 'finished' as Phase, finishedAt: Date.now() }
-    }
-    return {}
+    return { phase: 'finished' as Phase, finishedAt: Date.now() }
   }
   return {
     stageIndex: stageIndex + 1,
@@ -108,7 +119,8 @@ export const useGameStore = create<State>((set, get) => ({
   startedAt: 0,
   finishedAt: null,
 
-  start: (mode) =>
+  start: (mode) => {
+    shuffleLayout()
     set({
       mode,
       phase: 'building',
@@ -124,9 +136,11 @@ export const useGameStore = create<State>((set, get) => ({
       lastCompletedStage: null,
       startedAt: Date.now(),
       finishedAt: null,
-    }),
+    })
+  },
 
-  reset: () =>
+  reset: () => {
+    shuffleLayout()
     set((s) => ({
       phase: 'building',
       stageIndex: 0,
@@ -142,10 +156,25 @@ export const useGameStore = create<State>((set, get) => ({
       startedAt: Date.now(),
       finishedAt: null,
       mode: s.mode,
-    })),
+    }))
+  },
 
   backToMenu: () =>
     set({ phase: 'menu', stageIndex: 0, selectedId: null, dragging: false }),
+
+  skipStage: () => {
+    const { stageIndex } = get()
+    if (stageIndex >= STAGES.length - 1) return
+    set({
+      stageIndex: stageIndex + 1,
+      selectedId: null,
+      dragging: false,
+      hoverMountId: null,
+      wrongFlash: null,
+      stageChangedAt: Date.now(),
+      lastCompletedStage: STAGES[stageIndex].id,
+    })
+  },
 
   select: (id) => set({ selectedId: id }),
 

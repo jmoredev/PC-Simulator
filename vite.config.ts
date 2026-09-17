@@ -50,6 +50,12 @@ function boardModels(): Plugin {
     name: 'board-models',
     configureServer(server: ViteDevServer) {
       server.middlewares.use('/assets/models/placas', (req, res, next) => {
+        // Con `?optimized=1` se deja pasar para servir la copia comprimida de
+        // public/ (la que se publica), en vez del original de models-originales.
+        if ((req.url ?? '').includes('optimized=1')) {
+          next()
+          return
+        }
         const name = decodeURIComponent((req.url ?? '').split('?')[0]).replace(/^\/+/, '')
         if (!/^[\w.-]+\.glb$/.test(name)) {
           next()

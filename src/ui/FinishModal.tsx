@@ -1,4 +1,5 @@
 import { COMPONENTS, MOUNTS, TOTAL_STEPS } from '../data/components'
+import { STAGES } from '../data/stages'
 import { useGameStore } from '../store/useGameStore'
 
 function formatTime(ms: number): string {
@@ -26,8 +27,8 @@ export function FinishModal() {
       <div className="card">
         <h1>{mode === 'exam' ? 'Examen terminado' : '¡Montaje completado!'}</h1>
         <p className="lead">
-          Has montado correctamente las {TOTAL_STEPS} piezas del ordenador
-          ({COMPONENTS.length} componentes en {MOUNTS.length} huecos).
+          Has completado las {STAGES.length} fases del montaje: {TOTAL_STEPS}{' '}
+          colocaciones con {COMPONENTS.length} componentes en {MOUNTS.length} sitios.
         </p>
 
         <div className="score-grid">

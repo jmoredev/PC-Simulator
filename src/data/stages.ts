@@ -29,10 +29,21 @@ export const REAR_CAMERA = rearView()
 
 export const STAGES: Stage[] = [
   {
-    id: 'board',
+    id: 'identify',
     index: 0,
+    title: 'Identifica las piezas',
+    short: '1. Identificación',
+    hint: 'Lleva cada pieza hasta el cartel con su nombre.',
+    bench: { width: 12, depth: 11, center: [0, 0.6] },
+    tray: { cols: [-3, -1.8, -0.6, 0.6, 1.8, 3], rows: [0.6, 1.5, 2.4, 3.3], surfaceY: 0.11 },
+    camera: { position: [0, 8.6, 9.2], target: [0, 0, 0.7] },
+    drop: { kind: 'horizontal', y: DROP_Y, wrongRadius: 0.6 },
+  },
+  {
+    id: 'board',
+    index: 1,
     title: 'Sobre la placa base',
-    short: '1. Placa base',
+    short: '2. Placa base',
     hint: 'Monta la CPU, el disipador, la RAM, el SSD y la tarjeta gráfica.',
     bench: { width: 11, depth: 6.6, center: [0, 0.4] },
     tray: { cols: [-1.7, -0.5, 0.7], rows: [2.7, 3.6], surfaceY: 0.11 },
@@ -41,9 +52,9 @@ export const STAGES: Stage[] = [
   },
   {
     id: 'ports',
-    index: 1,
+    index: 2,
     title: 'Parte trasera del PC',
-    short: '2. Conectores',
+    short: '3. Conectores',
     hint: 'Conecta cada cable con su puerto en la parte trasera del ordenador.',
     bench: { width: 11, depth: 7, center: [0, 0.6] },
     tray: { cols: [-1.9, -0.95, 0, 0.95, 1.9], rows: [2.4, 3.2], surfaceY: 0.11 },
@@ -54,9 +65,9 @@ export const STAGES: Stage[] = [
   },
   {
     id: 'peripherals',
-    index: 2,
+    index: 3,
     title: 'Periféricos',
-    short: '3. Periféricos',
+    short: '4. Periféricos',
     hint: 'Conecta el monitor, el teclado, el ratón y los altavoces.',
     bench: { width: 17, depth: 13, center: [0, 0.2] as [number, number] },
     tray: { cols: [-1.9, 0.3], rows: [3.1, 4.7], surfaceY: 0.11 },

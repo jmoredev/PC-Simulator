@@ -61,8 +61,8 @@ function CableShape({ kind, accent }: { kind: string; accent: string }) {
       <Cyl
         rt={0.035}
         rb={0.035}
-        h={0.42}
-        p={[0, h / 2, d / 2 + 0.2]}
+        h={0.26}
+        p={[0, h / 2, d / 2 + 0.13]}
         rot={[Math.PI / 2, 0, 0]}
         c="#111722"
         r={0.6}
@@ -81,8 +81,8 @@ function JackShape({ accent }: { accent: string }) {
       <Cyl
         rt={0.032}
         rb={0.032}
-        h={0.7}
-        p={[0, 0.05, 0.4]}
+        h={0.26}
+        p={[0, 0.05, 0.18]}
         rot={[Math.PI / 2, 0, 0]}
         c="#111722"
         r={0.6}

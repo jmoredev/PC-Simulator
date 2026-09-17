@@ -8,12 +8,15 @@ didáctica para cada componente.
 
 ## Qué incluye
 
-- **Montaje en 3 fases**, cada una con su propia escena 3D:
-  1. **Sobre la placa base**: CPU, disipador, 2× RAM, SSD M.2 y tarjeta gráfica.
-  2. **Parte trasera del PC**: hay que conectar cada cable (HDMI, DisplayPort,
+- **Montaje en 4 fases**, cada una con su propia escena 3D:
+  1. **Identifica las piezas**: están todas sobre la mesa (incluidos los cables)
+     y hay que llevar cada una a su cartel con el nombre; el cartel se pone
+     verde al acertar.
+  2. **Sobre la placa base**: CPU, disipador, la RAM, SSD M.2 y tarjeta gráfica.
+  3. **Parte trasera del PC**: hay que conectar cada cable (HDMI, DisplayPort,
      DVI, VGA, USB, red, PS/2 y jacks de audio) con su puerto. Algunos cables
      **no encajan en ningún sitio**: hay que darse cuenta y dejarlos.
-  3. **Periféricos**: monitor, teclado, ratón y altavoces a **escala realista**
+  4. **Periféricos**: monitor, teclado, ratón y altavoces a **escala realista**
      junto al PC ya montado.
 - **Modo práctica**: al coger una pieza se ilumina su hueco en verde con el
   nombre del sitio.

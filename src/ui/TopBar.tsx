@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { OPTIMIZED_MODELS } from '../data/boards'
 import { TOTAL_STEPS } from '../data/components'
 import { STAGES } from '../data/stages'
 import { useGameStore } from '../store/useGameStore'
@@ -11,6 +12,7 @@ export function TopBar() {
   const stageIndex = useGameStore((s) => s.stageIndex)
   const reset = useGameStore((s) => s.reset)
   const backToMenu = useGameStore((s) => s.backToMenu)
+  const skipStage = useGameStore((s) => s.skipStage)
 
   const [now, setNow] = useState<number>(() => Date.now())
   useEffect(() => {
@@ -37,6 +39,11 @@ export function TopBar() {
       <span className="badge badge--stage">
         {STAGES[Math.min(stageIndex, STAGES.length - 1)].short}
       </span>
+      {OPTIMIZED_MODELS && (
+        <span className="badge" style={{ color: '#fbbf24' }}>
+          modelos comprimidos
+        </span>
+      )}
 
       <div className="spacer" />
 
@@ -60,6 +67,15 @@ export function TopBar() {
       <button className="btn btn--ghost" onClick={reset}>
         Reiniciar
       </button>
+      {mode === 'practice' && stageIndex < STAGES.length - 1 && (
+        <button
+          className="btn btn--ghost"
+          onClick={skipStage}
+          title="Pasar a la siguiente fase sin terminar esta"
+        >
+          Saltar fase →
+        </button>
+      )}
       <button className="btn" onClick={backToMenu}>
         Menú
       </button>

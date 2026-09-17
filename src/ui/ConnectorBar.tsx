@@ -1,7 +1,7 @@
 import { connectorImageUrl } from '../data/assets'
 import { COMPONENTS_BY_STAGE } from '../data/components'
 import { STAGES } from '../data/stages'
-import { useGameStore } from '../store/useGameStore'
+import { placedInStage, useGameStore } from '../store/useGameStore'
 
 /**
  * Barra inferior con los cables de la fase de conectores. Cada cable se puede
@@ -15,7 +15,7 @@ export function ConnectorBar() {
   const beginDrag = useGameStore((s) => s.beginDrag)
 
   const stage = STAGES[Math.min(stageIndex, STAGES.length - 1)]
-  const placedIds = new Set(Object.values(placed))
+  const placedIds = placedInStage(placed, stageIndex)
   const items = COMPONENTS_BY_STAGE[stage.id].filter((def) => !placedIds.has(def.id))
 
   return (

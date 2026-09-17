@@ -166,7 +166,7 @@ function portMounts(): MountPoint[] {
   })
 }
 
-export const MOUNTS: MountPoint[] = [
+const BASE_MOUNTS: MountPoint[] = [
   ...boardMounts(),
 
   ...portMounts(),
@@ -218,15 +218,6 @@ export const MOUNTS: MountPoint[] = [
   },
 ]
 
-export const MOUNT_BY_ID: Record<string, MountPoint> = Object.fromEntries(
-  MOUNTS.map((m) => [m.id, m]),
-)
-
-export const MOUNTS_BY_STAGE: Record<StageId, MountPoint[]> = {
-  board: MOUNTS.filter((m) => m.stage === 'board'),
-  ports: MOUNTS.filter((m) => m.stage === 'ports'),
-  peripherals: MOUNTS.filter((m) => m.stage === 'peripherals'),
-}
 
 /* ------------------------------------------------------------------ *
  *  CATÁLOGO DE COMPONENTES (textos adaptados a 4º ESO)
@@ -272,7 +263,7 @@ const RAW: RawComponent[] = [
     id: 'ram1',
     kind: 'ram',
     stage: 'board',
-    name: 'Memoria RAM (módulo 1)',
+    name: 'Memoria RAM',
     subtitle: 'Memoria de trabajo',
     category: 'interno',
     order: 3,
@@ -284,23 +275,6 @@ const RAW: RawComponent[] = [
       'Es la memoria de trabajo a corto plazo. Guarda temporalmente los programas y datos que estás usando ahora mismo. Cuanta más RAM, más aplicaciones puedes abrir a la vez. Su contenido se borra al apagar el ordenador.',
     funFact:
       'Los módulos actuales son DDR4 o DDR5. Un módulo DDR5 puede transferir más de 50 GB por segundo.',
-  },
-  {
-    id: 'ram2',
-    kind: 'ram',
-    stage: 'board',
-    name: 'Memoria RAM (módulo 2)',
-    subtitle: 'Memoria de trabajo',
-    category: 'interno',
-    order: 4,
-    mountId: 'ram_slot_b',
-    size: 1.33,
-    rotation: [-Math.PI / 2, 0, 0],
-    color: '#2f7d5b',
-    description:
-      'Segundo módulo de memoria. Instalar dos módulos iguales activa el modo “doble canal” (dual channel): el procesador puede leer y escribir en los dos a la vez y el rendimiento mejora.',
-    funFact:
-      'En muchas placas hay que montar los módulos en las ranuras 2 y 4, no en la 1 y 2, para aprovechar el doble canal.',
   },
   {
     id: 'ssd',
@@ -404,7 +378,7 @@ const RAW: RawComponent[] = [
   },
 ]
 
-const stageCounters: Record<StageId, number> = { board: 0, ports: 0, peripherals: 0 }
+const stageCounters: Record<StageId, number> = { identify: 0, board: 0, ports: 0, peripherals: 0 }
 
 /** Orden en el que se muestran los cables en la bandeja. */
 const CABLE_ORDER: ComponentKind[] = [
@@ -474,9 +448,13 @@ function cableComponents(): RawComponent[] {
 
 const ALL_COMPONENTS: RawComponent[] = [...RAW, ...cableComponents()]
 
-export const COMPONENTS: ComponentDef[] = ALL_COMPONENTS.map((component) => {
+export const COMPONENTS: ComponentDef[] = ALL_COMPONENTS.map((component, index) => {
   const indexInStage = stageCounters[component.stage]++
-  return { ...component, trayPos: traySlot(component.stage, indexInStage) }
+  return {
+    ...component,
+    trayPos: traySlot(component.stage, indexInStage),
+    identifyPos: traySlot('identify', index),
+  }
 })
 
 export const COMPONENT_BY_ID: Record<string, ComponentDef> = Object.fromEntries(
@@ -484,15 +462,127 @@ export const COMPONENT_BY_ID: Record<string, ComponentDef> = Object.fromEntries(
 )
 
 export const COMPONENTS_BY_STAGE: Record<StageId, ComponentDef[]> = {
+  identify: COMPONENTS,
   board: COMPONENTS.filter((c) => c.stage === 'board'),
   ports: COMPONENTS.filter((c) => c.stage === 'ports'),
   peripherals: COMPONENTS.filter((c) => c.stage === 'peripherals'),
 }
 
-/** Piezas que hay que colocar (los cables señuelo no cuentan). */
-export const PLACEABLE_COMPONENTS = COMPONENTS.filter((c) => !c.decoy)
+/* ------------------------------------------------------------------ *
+ *  FASE DE IDENTIFICACIÓN
+ *  Todas las piezas de la partida sobre la mesa y, detrás, un cartel con
+ *  el nombre de cada una. Hay que llevar cada pieza a su cartel.
+ * ------------------------------------------------------------------ */
 
-export const TOTAL_STEPS = PLACEABLE_COMPONENTS.length
+/** Nombre corto con el que se identifica cada tipo de pieza. */
+export const IDENTIFY_LABEL: Record<ComponentKind, string> = {
+  cpu: 'CPU',
+  cooler: 'Disipador',
+  ram: 'Memoria RAM',
+  ssd: 'SSD M.2',
+  gpu: 'Tarjeta gráfica',
+  monitor: 'Monitor',
+  keyboard: 'Teclado',
+  mouse: 'Ratón',
+  speaker: 'Altavoces',
+  ps2: 'Cable PS/2',
+  usb: 'Cable USB',
+  lan: 'Cable de red',
+  hdmi: 'Cable HDMI',
+  displayport: 'Cable DisplayPort',
+  dvi: 'Cable DVI',
+  vga: 'Cable VGA',
+  'audio-out': 'Jack altavoces',
+  'audio-in': 'Jack entrada',
+  'audio-mic': 'Jack micrófono',
+  'usb-c': 'Cable USB-C',
+  rj11: 'Cable teléfono',
+}
+
+/** Carteles de la identificación: uno por pieza, con el nombre de su tipo. */
+function identifyMounts(): MountPoint[] {
+  const { cols, rows } = STAGE_BY_ID.identify.tray
+  return COMPONENTS.map((def, index) => {
+    const col = Math.min(Math.floor(index / rows.length), cols.length - 1)
+    const row = index % rows.length
+    return {
+      id: `identify_${index}`,
+      stage: 'identify' as const,
+      label: IDENTIFY_LABEL[def.kind] ?? def.name,
+      position: [cols[col], 0.09, -1.15 - row * 0.62],
+      accepts: [def.kind],
+      snapRadius: 0.6,
+      size: [1.0, 0.4],
+      order: 1 + index,
+      difficulty: 1,
+    }
+  })
+}
+
+/** Mezcla aleatoriamente los índices 0..n-1. */
+function shuffle(n: number): number[] {
+  const list = Array.from({ length: n }, (_, i) => i)
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const swap = list[i]
+    list[i] = list[j]
+    list[j] = swap
+  }
+  return list
+}
+
+/** Índice de rejilla de cada pieza de una fase (barajado al empezar). */
+/**
+ * Recoloca al azar las piezas de la mesa y los carteles de la identificación.
+ * Se llama al empezar la partida para que la disposición no sea siempre igual.
+ */
+export function shuffleLayout(): void {
+  const stages: StageId[] = ['identify', 'board', 'ports', 'peripherals']
+  for (const stage of stages) {
+    const defs = COMPONENTS_BY_STAGE[stage]
+    const order = shuffle(defs.length)
+    defs.forEach((def, i) => {
+      const [x, z] = traySlot(stage, order[i])
+      if (stage === 'identify') def.identifyPos = [x, z]
+      else def.trayPos = [x, z]
+    })
+  }
+
+  // Los carteles se barajan aparte: si no, cada pieza caería sobre el suyo.
+  const plates = MOUNTS_BY_STAGE.identify
+  const plateOrder = shuffle(plates.length)
+  const { cols, rows } = STAGE_BY_ID.identify.tray
+  plates.forEach((mount, i) => {
+    const slot = plateOrder[i]
+    const col = Math.min(Math.floor(slot / rows.length), cols.length - 1)
+    mount.position = [cols[col], 0.09, -1.15 - (slot % rows.length) * 0.62]
+  })
+}
+
+export const MOUNTS: MountPoint[] = [...identifyMounts(), ...BASE_MOUNTS]
+
+export const MOUNT_BY_ID: Record<string, MountPoint> = Object.fromEntries(
+  MOUNTS.map((m) => [m.id, m]),
+)
+
+export const MOUNTS_BY_STAGE: Record<StageId, MountPoint[]> = {
+  identify: MOUNTS.filter((m) => m.stage === 'identify'),
+  board: MOUNTS.filter((m) => m.stage === 'board'),
+  ports: MOUNTS.filter((m) => m.stage === 'ports'),
+  peripherals: MOUNTS.filter((m) => m.stage === 'peripherals'),
+}
+
+/** Piezas que hay que colocar en cada fase (en la identificación, todas). */
+export const STAGE_STEPS: Record<StageId, number> = {
+  identify: COMPONENTS_BY_STAGE.identify.length,
+  board: COMPONENTS_BY_STAGE.board.filter((c) => !c.decoy).length,
+  ports: COMPONENTS_BY_STAGE.ports.filter((c) => !c.decoy).length,
+  peripherals: COMPONENTS_BY_STAGE.peripherals.filter((c) => !c.decoy).length,
+}
+
+/** Colocaciones de toda la partida. */
+export const TOTAL_STEPS =
+  STAGE_STEPS.identify + STAGE_STEPS.board + STAGE_STEPS.ports + STAGE_STEPS.peripherals
 
 /** Escala con la que se muestra el componente en la bandeja. */
 export function trayScaleFor(def: ComponentDef): number {
@@ -505,8 +595,10 @@ export function trayPanelFor(stage: StageId): {
   size: [number, number]
 } {
   const defs = COMPONENTS_BY_STAGE[stage]
-  const xs = defs.map((d) => d.trayPos[0])
-  const zs = defs.map((d) => d.trayPos[1])
+  const at = (def: ComponentDef) =>
+    stage === 'identify' ? (def.identifyPos ?? def.trayPos) : def.trayPos
+  const xs = defs.map((d) => at(d)[0])
+  const zs = defs.map((d) => at(d)[1])
   const minX = Math.min(...xs) - 0.9
   const maxX = Math.max(...xs) + 0.9
   const minZ = Math.min(...zs) - 0.9

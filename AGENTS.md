@@ -10,8 +10,9 @@ se cambie la estructura de carpetas o se modifique el flujo de trabajo.
 
 Simulador 3D interactivo de **montaje de PC** para la asignatura de Tecnología
 de **4º de la ESO**. El alumnado monta un ordenador arrastrando componentes
-hasta su sitio, en **3 fases** (placa base → conectores traseros → periféricos),
-con dos modos de juego (práctica y examen) y una ficha didáctica por componente.
+hasta su sitio, en **4 fases** (identificación → placa base → conectores
+traseros → periféricos), con dos modos de juego (práctica y examen) y una ficha
+didáctica por componente.
 
 - No hay backend ni cuentas de usuario: todo ocurre en el navegador.
 - Objetivo: funcionar en portátiles y Chromebooks modestos del aula.
@@ -76,7 +77,8 @@ PC-Emulator/
 │   │   └── useCalibrationStore.ts # marcas del modo calibración (localStorage)
 │   ├── three/
 │   │   ├── Scene.tsx        # composición de la escena, luces, bandeja, arrastre, cámara
-│   │   ├── StageBoard.tsx   # fase 1: placa sobre alfombrilla antiestática
+│   │   ├── StageIdentify.tsx # fase 1: los carteles con el nombre de cada pieza
+│   │   ├── StageBoard.tsx   # fase 2: placa sobre alfombrilla antiestática
 │   │   ├── StagePorts.tsx   # fase 2: panel de puertos trasero tumbado + torre
 │   │   ├── StagePeripherals.tsx # fase 3: escritorio y torre terminada
 │   │   ├── Motherboard.tsx  # geometría de la placa base y sus zócalos
@@ -102,15 +104,19 @@ PC-Emulator/
 Todo el contenido vive en `src/data/`; no hay que tocar la 3D para añadir piezas.
 
 - **`Stage`** (`stages.ts`): fase del montaje. Tiene `id`
-  (`board` | `ports` | `peripherals`), superficie de trabajo (`bench`), rejilla de
-  la bandeja (`tray`) y cámara (`camera`).
+  (`identify` | `board` | `ports` | `peripherals`), superficie de trabajo
+  (`bench`), rejilla de la bandeja (`tray`), cámara (`camera`) y plano de
+  arrastre (`drop`).
 - **`MountPoint`** (`MOUNTS`): un hueco. Tiene `stage`, `position` (base del
   componente), `accepts` (tipos válidos), `snapRadius`, `size` (`[largo, ancho]`
   de la zona resaltada), `angle` (giro en el plano XZ) y `order`.
 - **`ComponentDef`** (`COMPONENTS`): una pieza. Tiene `kind`, `stage`, `mountId`,
   `size` (dimensión máxima para normalizar el modelo), `rotation` (giro [x,y,z]
-  del modelo), `trayPos`, color y los textos didácticos (`description`,
-  `funFact`). Los **cables señuelo** no tienen `mountId` y llevan `decoy: true`.
+  del modelo), `trayPos`, `identifyPos` (mesa de la fase 1), color y los textos
+  didácticos (`description`, `funFact`). Los **cables señuelo** no tienen
+  `mountId` y llevan `decoy: true`.
+- **`STAGE_STEPS`**: piezas a colocar en cada fase (en la identificación, todas,
+  incluidos los señuelos). `TOTAL_STEPS` es la suma: el progreso de la partida.
 
 Reglas de layout:
 
@@ -126,7 +132,7 @@ Reglas de layout:
 | - | -------- | ------- |
 | 1 | **Three.js + React Three Fiber**, no Three.js puro | Se mantiene la potencia de Three.js con un modelo declarativo; drei aporta `OrbitControls`, `Html` y `useGLTF` resueltos. |
 | 2 | **Zustand** para el estado | Muy ligero, sin providers, fácil de consumir desde R3F (`useGameStore`) y desde la UI. |
-| 3 | **Montaje en 3 fases** (`board` → `ports` → `peripherals`), cada una con su escena | Separar el interior del PC del reconocimiento de los puertos traseros evita mezclar escalas y hace el flujo más claro. La fase 3 usa periféricos a escala real. |
+| 3 | **Montaje en 4 fases** (`identify` → `board` → `ports` → `peripherals`) | Empezar reconociendo las piezas, separar el interior del PC del reconocimiento de los puertos traseros y terminar con los periféricos a escala real da un flujo claro y sin mezclar escalas. |
 | 4 | **Plano de arrastre configurable por fase** (`stage.drop`) | El puntero se proyecta sobre un plano: horizontal en la placa y los periféricos (`Y = DROP_Y`), y **vertical** en la fase de conectores (`X = chapa`), que se juega en el plano YZ. Una sola mecánica, cambiando solo el plano y los dos ejes que se comparan. |
 | 5 | **El panel trasero se muestra tumbado, con los puertos hacia arriba** | Mantiene el plano horizontal (decisión 4) y deja ver y clicar todos los conectores a la vez. |
 | 6 | **Periféricos a escala realista** | Un monitor es más ancho que la placa base; mostrarlo a escala enseña la diferencia de tamaño y evita la sensación de "juguete". |
@@ -160,6 +166,11 @@ Reglas de layout:
 | 34 | **La fase 2 se genera desde la calibración** (`rear` + `ports`) | Un cable por cada tipo de conector de la placa (más los señuelos), y un hueco por puerto. Varios puertos del mismo tipo valen indistintamente, así que la fase termina al colocar todos los **cables**, no al llenar todos los puertos. |
 | 35 | **El cable colocado es una pieza 3D simple** (`ConnectorPlug`), no la imagen | Una imagen plana sobre la chapa no da sensación de cable enchufado; con un conector de cajas y un latiguillo que sale y cae sí. |
 | 36 | **El calibrador cambia a la cámara trasera** al marcar la chapa o un puerto | Marcar los puertos desde arriba era impreciso (los apilados coinciden en XZ); de frente se ve cada uno y la calibración sale exacta. |
+| 37 | **Fase 0 de identificación**: todas las piezas sobre la mesa y un cartel por pieza | Antes de montar hay que reconocer el material. Los carteles llevan el nombre siempre visible (son las respuestas) y hay **uno por pieza** (los dos módulos de RAM tienen su cartel, ambos con el mismo texto) para que cualquiera valga. |
+| 38 | **Al identificar, la pieza no se queda encima del cartel**: el cartel se pone verde | Muchas piezas (el monitor, la GPU) tapaban el resto de carteles. Con el cartel en verde se ve el avance y no estorba. |
+| 39 | **La disposición de la mesa se baraja en cada partida** (`shuffleLayout`) | Si las piezas y los carteles salen siempre en el mismo sitio, se memorizan las posiciones en vez de reconocer las piezas. Las piezas y los carteles se barajan **por separado**. |
+| 40 | **En práctica hay un botón para saltar de fase** (`skipStage`) | Para poder ir directo al montaje sin completar la identificación. En examen no aparece. |
+| 41 | **Solo un módulo de RAM y un cable señuelo** (USB-C) | Con dos módulos había que repetir el mismo gesto dos veces y el RJ-11 sobraba; los dos huecos de RAM siguen ahí y valen indistintamente. |
 
 ## 7. Pipeline de assets 3D
 
