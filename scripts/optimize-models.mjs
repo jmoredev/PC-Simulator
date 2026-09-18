@@ -95,7 +95,8 @@ for (const file of files) {
       '--simplify',
       'true',
     ],
-    { stdio: 'ignore' },
+    // En Windows `npx` es un .cmd y spawnSync necesita el shell.
+    { stdio: 'ignore', shell: process.platform === 'win32' },
   )
 
   if (result.status !== 0) {

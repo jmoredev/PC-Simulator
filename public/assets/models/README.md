@@ -36,19 +36,21 @@ npm run models:optimize -- --backup models-originales # guarda copia de los orig
 El nombre debe coincidir con el `id` del componente. Formato recomendado: `.glb`
 (glTF binario, con las texturas incrustadas).
 
+Algunas piezas tienen **varias variantes** del mismo tipo (se sortea una por
+partida): CPU, GPU y RAM. Se nombran `<id>-01`, `<id>-02`…
+
 | Archivo            | Componente                 | Forma / notas                                                        |
 | ------------------ | -------------------------- | -------------------------------------------------------------------- |
-| `cpu.glb`          | CPU (procesador)           | Chip cuadrado con la tapa metálica (IHS). Base apoyada en el suelo.  |
+| `cpu-01.glb`, `cpu-02.glb` | CPU (procesador)   | Chip cuadrado con la tapa metálica (IHS). Dos variantes.             |
 | `cooler.glb`       | Disipador + ventilador     | Bloque de aletas con ventilador lateral.                             |
-| `ram1.glb`         | Memoria RAM (módulo 1)     | Módulo rectangular y alargado con disipador.                         |
-| `ram2.glb`         | Memoria RAM (módulo 2)     | Puede ser una copia de `ram1.glb`.                                   |
-| `ssd.glb`          | SSD M.2                    | Placa alargada y fina, con chips y conector dorado en un extremo.    |
-| `gpu.glb`          | Tarjeta gráfica            | Tarjeta alargada con 2 ventiladores y lengüetas PCIe doradas.        |
-| `motherboard.glb`  | Placa base                 | **Solo la placa**, sin componentes. Es la base de la fase 1.         |
+| `ram1.glb`, `ram2.glb` | Memoria RAM            | Módulo alargado con disipador. Dos variantes (Corsair / Crucial).    |
+| `ssd-nvme.glb`     | SSD M.2 NVMe               | Placa alargada y fina, con chips y conector dorado en un extremo.    |
+| `gpu-01.glb`, `gpu-02.glb` | Tarjeta gráfica    | Tarjeta alargada con ventiladores y lengüetas PCIe doradas. Variantes. |
 | `monitor.glb`      | Monitor                    | Pantalla con peana. Mírala de frente hacia +Z. Tamaño real (~53 cm). |
 | `keyboard.glb`     | Teclado                    | Teclado plano apoyado en el suelo (~44 cm de ancho).                 |
 | `mouse.glb`        | Ratón                      | Ratón pequeño (~12 cm).                                              |
 | `speakers.glb`     | Altavoces                  | **Par** de altavoces (uno a cada lado).                              |
+| `fan.glb`, `hdd.glb`, `psu.glb` | (sin fase asignada) | Descargados y optimizados, pero todavía no se usan en ninguna fase. |
 
 > Los periféricos son grandes de verdad (un monitor es más ancho que la placa
 > base). Es correcto: así se ve la diferencia de escala al montarlos en la fase 3.

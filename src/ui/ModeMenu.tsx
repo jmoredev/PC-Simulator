@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { STAGES } from '../data/stages'
 import { useGameStore } from '../store/useGameStore'
 import type { GameMode } from '../types'
+import { CreditsModal } from './CreditsModal'
 
 const STEPS: [string, string][] = [
   ['1', 'Primero identifica cada pieza y llévala a su cartel.'],
@@ -11,6 +13,7 @@ const STEPS: [string, string][] = [
 
 export function ModeMenu() {
   const start = useGameStore((s) => s.start)
+  const [credits, setCredits] = useState(false)
 
   const pick = (mode: GameMode) => () => start(mode)
 
@@ -61,7 +64,15 @@ export function ModeMenu() {
             </div>
           ))}
         </div>
+
+        <div className="overlay-actions">
+          <button className="btn btn--ghost" onClick={() => setCredits(true)}>
+            Créditos y licencias
+          </button>
+        </div>
       </div>
+
+      {credits && <CreditsModal onClose={() => setCredits(false)} />}
     </div>
   )
 }

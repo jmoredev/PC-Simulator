@@ -15,7 +15,7 @@ export function Placeholder({ def }: { def: ComponentDef }) {
       return <CoolerShape accent={def.color} />
     case 'ram':
       return <RamShape accent={def.color} />
-    case 'ssd':
+    case 'ssd-nvme':
       return <SsdShape accent={def.color} />
     case 'gpu':
       return <GpuShape accent={def.color} />

@@ -107,7 +107,7 @@ const BOARD_MOUNTS_DEFAULT: MountPoint[] = [
     stage: 'board',
     label: 'Ranura M.2',
     position: [0.083, 0.08, 0.109],
-    accepts: ['ssd'],
+    accepts: ['ssd-nvme'],
     snapRadius: 0.5,
     size: [1.02, 0.34],
     angle: -1.515,
@@ -237,6 +237,10 @@ const RAW: RawComponent[] = [
     order: 1,
     mountId: 'cpu_socket',
     size: 0.5,
+    variants: [
+      { model: '/assets/models/cpu-01.glb', rotation: [-Math.PI / 2, 0, 0] },
+      { model: '/assets/models/cpu-02.glb' },
+    ],
     color: '#c9ced6',
     description:
       'Es el cerebro del ordenador. Ejecuta las instrucciones de los programas realizando miles de millones de operaciones por segundo. Su velocidad se mide en GHz y el número de núcleos indica cuántas tareas puede hacer a la vez.',
@@ -260,7 +264,7 @@ const RAW: RawComponent[] = [
       'Si el ventilador se para, la CPU puede superar los 100 °C en segundos y activar la protección térmica.',
   },
   {
-    id: 'ram1',
+    id: 'ram',
     kind: 'ram',
     stage: 'board',
     name: 'Memoria RAM',
@@ -269,7 +273,10 @@ const RAW: RawComponent[] = [
     order: 3,
     mountId: 'ram_slot_a',
     size: 1.33,
-    rotation: [-Math.PI / 2, 0, 0],
+    variants: [
+      { model: '/assets/models/ram1.glb', rotation: [Math.PI / 2, Math.PI / 2, 0] },
+      { model: '/assets/models/ram2.glb', rotation: [Math.PI / 2, Math.PI / 2, 0] },
+    ],
     color: '#2f7d5b',
     description:
       'Es la memoria de trabajo a corto plazo. Guarda temporalmente los programas y datos que estás usando ahora mismo. Cuanta más RAM, más aplicaciones puedes abrir a la vez. Su contenido se borra al apagar el ordenador.',
@@ -277,8 +284,8 @@ const RAW: RawComponent[] = [
       'Los módulos actuales son DDR4 o DDR5. Un módulo DDR5 puede transferir más de 50 GB por segundo.',
   },
   {
-    id: 'ssd',
-    kind: 'ssd',
+    id: 'ssd-nvme',
+    kind: 'ssd-nvme',
     stage: 'board',
     name: 'SSD M.2',
     subtitle: 'Almacenamiento permanente',
@@ -286,7 +293,7 @@ const RAW: RawComponent[] = [
     order: 5,
     mountId: 'm2_slot',
     size: 0.9,
-    rotation: [0, Math.PI, 0],
+    rotation: [0, -Math.PI / 2, 0],
     color: '#1f6f8b',
     description:
       'Almacenamiento permanente. Aquí se guardan el sistema operativo, tus archivos, juegos y fotos aunque apagues el ordenador. Los SSD M.2 se conectan directamente a la placa y no tienen partes móviles, por eso son mucho más rápidos y silenciosos que un disco duro tradicional (HDD).',
@@ -303,6 +310,10 @@ const RAW: RawComponent[] = [
     order: 6,
     mountId: 'pcie_slot',
     size: 2.4,
+    variants: [
+      { model: '/assets/models/gpu-01.glb', rotation: [Math.PI / 2, Math.PI / 2, 0] },
+      { model: '/assets/models/gpu-02.glb' },
+    ],
     color: '#5b636f',
     description:
       'Se encarga de generar las imágenes que ves en el monitor. Es imprescindible para jugar en 3D, editar vídeo o hacer diseño. Tiene su propia memoria (VRAM) y puede hacer millones de operaciones gráficas por segundo.',
@@ -450,12 +461,22 @@ const ALL_COMPONENTS: RawComponent[] = [...RAW, ...cableComponents()]
 
 export const COMPONENTS: ComponentDef[] = ALL_COMPONENTS.map((component, index) => {
   const indexInStage = stageCounters[component.stage]++
+  const variant = pickVariant(component)
   return {
     ...component,
     trayPos: traySlot(component.stage, indexInStage),
     identifyPos: traySlot('identify', index),
+    ...(variant
+      ? { model: variant.model, rotation: variant.rotation ?? component.rotation }
+      : {}),
   }
 })
+
+/** Elige una variante al azar de las que tenga la pieza (si tiene). */
+function pickVariant(def: Pick<ComponentDef, 'variants'>) {
+  if (!def.variants || def.variants.length === 0) return null
+  return def.variants[Math.floor(Math.random() * def.variants.length)]
+}
 
 export const COMPONENT_BY_ID: Record<string, ComponentDef> = Object.fromEntries(
   COMPONENTS.map((c) => [c.id, c]),
@@ -479,7 +500,7 @@ export const IDENTIFY_LABEL: Record<ComponentKind, string> = {
   cpu: 'CPU',
   cooler: 'Disipador',
   ram: 'Memoria RAM',
-  ssd: 'SSD M.2',
+  'ssd-nvme': 'SSD M.2',
   gpu: 'Tarjeta gráfica',
   monitor: 'Monitor',
   keyboard: 'Teclado',
@@ -557,6 +578,14 @@ export function shuffleLayout(): void {
     const col = Math.min(Math.floor(slot / rows.length), cols.length - 1)
     mount.position = [cols[col], 0.09, -1.15 - (slot % rows.length) * 0.62]
   })
+
+  // Y se sortea la variante de las piezas que tengan varias (p. ej. la CPU).
+  for (const def of COMPONENTS) {
+    const variant = pickVariant(def)
+    if (!variant) continue
+    def.model = variant.model
+    def.rotation = variant.rotation ?? def.rotation
+  }
 }
 
 export const MOUNTS: MountPoint[] = [...identifyMounts(), ...BASE_MOUNTS]

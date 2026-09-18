@@ -216,6 +216,14 @@ src/
   y [@react-three/drei](https://github.com/pmndrs/drei)
 - [Zustand](https://zustand.docs.pmnd.rs/) para el estado
 
+## Créditos y licencias
+
+Los modelos 3D y las imágenes de los conectores son obra de sus autores y se usan
+bajo la licencia que se indica **archivo por archivo** en [`CREDITS.md`](CREDITS.md).
+También se pueden consultar dentro del simulador, en
+**Menú → Créditos y licencias**. Los modelos 3D están **optimizados para la web**,
+así que se citan como adaptados.
+
 ## Notas para el aula
 
 - Pensado para funcionar en portátiles y Chromebooks modestos: si va lento,

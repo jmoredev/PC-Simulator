@@ -94,6 +94,7 @@ PC-Emulator/
 │   ├── main.tsx             # punto de entrada
 │   └── index.css            # todos los estilos
 ├── AGENTS.md                # este archivo
+├── CREDITS.md               # autor, fuente y licencia de cada modelo e imagen
 ├── README.md                # documentación para docentes / usuarios
 ├── vite.config.ts           # plugin de dev que guarda la calibración
 └── .env.example             # plantilla para activar los modelos .glb
@@ -171,6 +172,7 @@ Reglas de layout:
 | 39 | **La disposición de la mesa se baraja en cada partida** (`shuffleLayout`) | Si las piezas y los carteles salen siempre en el mismo sitio, se memorizan las posiciones en vez de reconocer las piezas. Las piezas y los carteles se barajan **por separado**. |
 | 40 | **En práctica hay un botón para saltar de fase** (`skipStage`) | Para poder ir directo al montaje sin completar la identificación. En examen no aparece. |
 | 41 | **Solo un módulo de RAM y un cable señuelo** (USB-C) | Con dos módulos había que repetir el mismo gesto dos veces y el RJ-11 sobraba; los dos huecos de RAM siguen ahí y valen indistintamente. |
+| 42 | **Créditos por archivo** (`CREDITS.md` + Menú → Créditos y licencias) | Los modelos son de terceros y casi todos CC con atribución; hay que citar autor, fuente, licencia y **los cambios** (están optimizados). La tabla de `CREDITS.md` y `src/data/credits.ts` se mantienen en paralelo. |
 
 ## 7. Pipeline de assets 3D
 

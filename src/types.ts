@@ -1,10 +1,17 @@
 export type Vec3 = [number, number, number]
 
+/** Variante de modelo de una pieza (p. ej. dos CPUs distintas). */
+export interface ModelVariant {
+  model: string
+  /** Giro [x, y, z] propio de esta variante. */
+  rotation?: Vec3
+}
+
 export type ComponentKind =
   | 'cpu'
   | 'cooler'
   | 'ram'
-  | 'ssd'
+  | 'ssd-nvme'
   | 'gpu'
   | 'monitor'
   | 'keyboard'
@@ -106,6 +113,8 @@ export interface ComponentDef {
   decoy?: boolean
   /** Ruta explícita del modelo .glb (opcional). */
   model?: string
+  /** Varios modelos para la misma pieza: se elige uno al azar por partida. */
+  variants?: ModelVariant[]
   /** Sin modelo .glb: se dibuja siempre con la geometría procedural. */
   procedural?: boolean
   /** Giro del modelo en radianes [x, y, z] para orientarlo en el hueco. */

@@ -112,7 +112,7 @@ export const BOARDS: BoardDef[] = [
   },
   {
     id: 'motherboard-03',
-    name: 'Gigabyte H310M (modelo con foto)',
+    name: 'Gigabyte B450 S2H (modelo con foto)',
     size: 3.05,
     rawSize: [4.259, 0.756, 4.8],
     rotation: [0, 0, 0],
