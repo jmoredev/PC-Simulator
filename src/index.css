@@ -45,6 +45,9 @@ button {
 .canvas-host {
   position: absolute;
   inset: 0;
+  /* Crea un contexto de apilado propio: así las etiquetas HTML de la escena
+     (Html de drei, con z-index enorme) no se montan encima de la interfaz. */
+  z-index: 0;
 }
 
 /* ---------- barra superior ---------- */
