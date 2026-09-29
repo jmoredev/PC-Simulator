@@ -49,7 +49,7 @@ npm run models:optimize  # comprimir los .glb de public/assets/models
 ## 4. Estructura de carpetas
 
 ```
-PC-Emulator/
+PC-Simulator/
 ├── public/
 │   └── assets/
 │       ├── models/          # .glb de los componentes (ver su README.md)
