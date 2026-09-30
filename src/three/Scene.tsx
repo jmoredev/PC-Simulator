@@ -4,18 +4,21 @@ import { useFrame, useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import {
+  BOARD_MODEL,
   COMPONENTS_BY_STAGE,
   COMPONENT_BY_ID,
   MOUNT_BY_ID,
   MOUNTS_BY_STAGE,
+  ROTATION_TARGETS,
+  rotationPreviewDef,
   trayPanelFor,
   trayScaleFor,
 } from '../data/components'
 import { STAGES, REAR_CAMERA } from '../data/stages'
 import { useCurrentStage, useGameStore, placedInStage } from '../store/useGameStore'
 import { useCalibrationStore } from '../store/useCalibrationStore'
-import type { ComponentDef, Stage } from '../types'
-import { ComponentVisual } from './ComponentModel'
+import type { ComponentDef, Stage, Vec3 } from '../types'
+import { ComponentVisual, ModelOrFallback } from './ComponentModel'
 import { ConnectorPlug } from './ConnectorPlug'
 import { CALIBRATE, DEBUG, rearCameraFrom } from '../calibration'
 import { BOARD } from '../data/boards'
@@ -23,11 +26,13 @@ import { connectorImageUrl } from '../data/assets'
 import { portSize } from '../data/ports'
 import { CalibrationPicker } from './CalibrationPicker'
 import { DebugGrid } from './DebugGrid'
+import { Motherboard } from './Motherboard'
 import { MountZone } from './MountZone'
 import { StageBoard } from './StageBoard'
 import { StageIdentify } from './StageIdentify'
 import { StagePeripherals } from './StagePeripherals'
 import { StagePorts } from './StagePorts'
+import { Ball, Cyl } from './primitives'
 
 const HIT = new THREE.Vector3()
 const NDC = new THREE.Vector2()
@@ -41,6 +46,72 @@ function dropPlaneFor(stage: Stage): THREE.Plane {
 
 /** ¿La fase se juega sobre un plano vertical (chapa trasera de frente)? */
 const isVertical = (stage: Stage) => stage.drop.kind === 'vertical'
+
+/** Cámara de la pestaña «Rotaciones»: el modelo centrado, a media distancia. */
+const ROTATION_VIEW = {
+  position: [2.4, 1.9, 2.9] as [number, number, number],
+  target: [0, 0.3, 0] as [number, number, number],
+}
+
+/** Suelo neutro de la pestaña «Rotaciones», con rejilla de referencia. */
+function RotationGround() {
+  return (
+    <group>
+      <mesh position={[0, -0.086, 0]} receiveShadow>
+        <boxGeometry args={[6, 0.16, 6]} />
+        <meshStandardMaterial color="#252a33" metalness={0.2} roughness={0.85} />
+      </mesh>
+      <gridHelper args={[6, 12, '#3b4453', '#2e3542']} />
+    </group>
+  )
+}
+
+/** Triada de ejes (X rojo, Y verde, Z azul) en una esquina del suelo. */
+function AxesGizmo() {
+  const L = 0.55
+  return (
+    <group position={[-2.3, 0.002, -2.3]}>
+      <Ball radius={0.035} c="#94a3b8" />
+      <Cyl rt={0.022} rb={0.022} h={L} p={[L / 2, 0, 0]} rot={[0, 0, -Math.PI / 2]} c="#ef4444" />
+      <Cyl rt={0} rb={0.05} h={0.12} p={[L + 0.06, 0, 0]} rot={[0, 0, -Math.PI / 2]} c="#ef4444" />
+      <Cyl rt={0.022} rb={0.022} h={L} p={[0, L / 2, 0]} c="#22c55e" />
+      <Cyl rt={0} rb={0.05} h={0.12} p={[0, L + 0.06, 0]} c="#22c55e" />
+      <Cyl rt={0.022} rb={0.022} h={L} p={[0, 0, L / 2]} rot={[Math.PI / 2, 0, 0]} c="#3b82f6" />
+      <Cyl rt={0} rb={0.05} h={0.12} p={[0, 0, L + 0.06]} rot={[Math.PI / 2, 0, 0]} c="#3b82f6" />
+      <Html center position={[L + 0.28, 0, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="axis-label axis-label--x">X</div>
+      </Html>
+      <Html center position={[0, L + 0.28, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="axis-label axis-label--y">Y</div>
+      </Html>
+      <Html center position={[0, 0, L + 0.28]} style={{ pointerEvents: 'none' }}>
+        <div className="axis-label axis-label--z">Z</div>
+      </Html>
+    </group>
+  )
+}
+
+/** Solo el modelo del objetivo elegido, girado con su calibración en vivo. */
+function RotationPreview() {
+  const selected = useCalibrationStore((s) => s.selectedTarget)
+  const rotations = useCalibrationStore((s) => s.rotations)
+  const target = ROTATION_TARGETS.find((t) => t.key === selected) ?? ROTATION_TARGETS[0]
+  if (!target) return null
+  const stored = rotations[target.key]
+  // Array nuevo en cada render: GltfModel memoriza por [scene, target, rotation].
+  const rotation: Vec3 = stored ? [...stored] : [...target.baseRotation]
+  return (
+    <group>
+      <RotationGround />
+      <AxesGizmo />
+      {target.kind ? (
+        <ComponentVisual def={rotationPreviewDef(target, rotation)} />
+      ) : (
+        <ModelOrFallback spec={BOARD_MODEL} fallback={<Motherboard />} rotation={rotation} />
+      )}
+    </group>
+  )
+}
 
 function Lights() {
   return (
@@ -320,6 +391,7 @@ function CameraRig({ stage }: { stage: Stage }) {
   const dragging = useGameStore((s) => s.dragging)
   const armed = useCalibrationStore((s) => s.armed)
   const points = useCalibrationStore((s) => s.points)
+  const rotationTab = useCalibrationStore((s) => s.tab) === 'rotations'
   const controls = useRef<React.ComponentRef<typeof OrbitControls>>(null)
   const { camera } = useThree()
   const TOP_VIEW = {
@@ -331,7 +403,13 @@ function CameraRig({ stage }: { stage: Stage }) {
   // que se acaban de marcar.
   const calibratingRear = armed === 'rear_area' || armed === 'port'
   const rearCalView = rearCameraFrom(points) ?? (BOARD.rear ? REAR_CAMERA : TOP_VIEW)
-  const view = CALIBRATE ? (calibratingRear ? rearCalView : TOP_VIEW) : stage.camera
+  const view = CALIBRATE
+    ? rotationTab
+      ? ROTATION_VIEW
+      : calibratingRear
+        ? rearCalView
+        : TOP_VIEW
+    : stage.camera
   const desiredPos = useRef(new THREE.Vector3(...view.position))
   const desiredTarget = useRef(new THREE.Vector3(...view.target))
   const animating = useRef(false)
@@ -340,7 +418,7 @@ function CameraRig({ stage }: { stage: Stage }) {
     desiredPos.current.set(...view.position)
     desiredTarget.current.set(...view.target)
     animating.current = true
-  }, [stage.id, view.position, view.target])
+  }, [stage.id, view])
 
   useFrame((_, delta) => {
     const c = controls.current
@@ -375,8 +453,19 @@ function StageContent({ stage }: { stage: Stage }) {
 
 export function Scene() {
   const stage = useCurrentStage()
+  const rotationTab = useCalibrationStore((s) => s.tab) === 'rotations'
 
   if (CALIBRATE) {
+    if (rotationTab) {
+      return (
+        <>
+          <Lights />
+          <StudioEnvironment />
+          <RotationPreview />
+          <CameraRig stage={stage} />
+        </>
+      )
+    }
     return (
       <>
         <Lights />

@@ -177,6 +177,7 @@ Reglas de layout:
 | 44 | **Botón «Rendirse» en el examen** (`giveUp`) | Solo en modo examen: descuenta las piezas no colocadas de la fase y avanza (o termina en la última). Sustituye al «Saltar fase» de práctica. |
 | 45 | **Placa base aleatoria por carga de página** | Sin `?board`, cada visita nueva elige una placa al azar (`boards.ts`). `?board=<id>` la fija (calibración y tests). En calibración sin `?board` se usa la primera. |
 | 46 | **Jitter aleatorio en mesa y bandeja** (`shuffleLayout`) | Además del barajado, cada pieza recibe un desplazamiento aleatorio de ±0,4 u para que la disposición no salga igual cada partida. Los huecos de montaje no se tocan. |
+| 47 | **Pestaña «Rotaciones» en el calibrador** (`ROTATION_TARGETS`) | El giro correcto de cada `.glb` tampoco se puede deducir. En `?calibrate=1` hay dos pestañas: «Posiciones» (la de siempre) y «Rotaciones», donde se gira el modelo en vivo por ejes y se exportan los radianes a `.scratch/rotations.json` para copiarlos a `variants[].rotation` o a `boards.ts`. |
 
 ## 7. Pipeline de assets 3D
 
@@ -236,6 +237,25 @@ arrastre sobre un **plano vertical** (`stage.drop` = `vertical`, `x` = la X de l
 chapa): así la placa se sigue viendo en 3D con todo lo montado, los puertos se
 distinguen y los huecos son los de `ports` sin transformar. Los cables no están
 en la mesa: se arrastran desde la barra lateral de piezas.
+
+### Calibración de rotaciones (pestaña «Rotaciones»)
+
+La orientación de cada `.glb` (que venga tumbado, mirando hacia atrás…) tampoco
+se puede deducir del código. Con `?calibrate=1`, en la pestaña **Rotaciones**:
+
+1. Elegir el modelo en la lista (cada variante de CPU/RAM/GPU, las piezas con
+   giro plano y la placa base activa).
+2. Girarlo en vivo con los botones de cada eje (X/Y/Z): pasos de ±90° y ±5°,
+   con lectura en grados y en radianes. La cámara se mueve con el ratón sin
+   girar el modelo.
+3. **Guardar en el proyecto** escribe `.scratch/rotations.json` (solo en
+   desarrollo, vía el endpoint `/__rotations` del plugin `calibrationSaver`).
+4. Los valores se copian a mano del snippet al código: en `variants[].rotation`
+   de `components.ts` (o en `rotation` de la pieza si no tiene variantes) y, en
+   la placa, en `rotation` de su entrada de `boards.ts`.
+
+El giro de la ranura (`mount.angle`) se aplica después, al colocar la pieza, y
+NO forma parte de esta calibración.
 
 ### Imágenes de los conectores (fase 2)
 

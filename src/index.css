@@ -1114,3 +1114,179 @@ button {
     display: none;
   }
 }
+
+/* ---------- calibración: pestañas ---------- */
+.calib__tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.calib__tab {
+  flex: 1;
+  padding: 8px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.7);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.calib__tab--active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.14);
+}
+
+/* ---------- calibración: pestaña «Rotaciones» ---------- */
+.rot-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rot-calc__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.rot-calc__hint code {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.rot-calc__targets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rot-calc__target {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.7);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rot-calc__target--active {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.rot-calc__target-value {
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+  flex: none;
+}
+
+.rot-calc__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.rot-calc__axis {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rot-calc__axis-name {
+  width: 16px;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.rot-calc__axis-value {
+  width: 58px;
+  font-family: ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: right;
+  flex: none;
+}
+
+.rot-calc__axis-btns {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.rot-calc__axis-btns button {
+  flex: 1;
+  padding: 5px 0;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--text);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.rot-calc__axis-btns button:hover {
+  border-color: var(--accent);
+}
+
+.rot-calc__readout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.rot-calc__readout code {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--accent-2);
+}
+
+.rot-calc__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.rot-calc__actions .btn {
+  flex: 1;
+  padding: 8px 6px;
+  font-size: 12px;
+}
+
+/* ---------- etiquetas del gizmo de ejes ---------- */
+.axis-label {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.85);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.axis-label--x {
+  color: #ef4444;
+}
+
+.axis-label--y {
+  color: #22c55e;
+}
+
+.axis-label--z {
+  color: #3b82f6;
+}

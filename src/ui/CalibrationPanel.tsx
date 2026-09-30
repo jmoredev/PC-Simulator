@@ -2,12 +2,15 @@ import { useState } from 'react'
 import { BOARD_SLOTS, PORT_KINDS, PORT_SLOT, deriveLayout, type Point } from '../calibration'
 import { BOARD_ID, BOARDS } from '../data/boards'
 import { useCalibrationStore } from '../store/useCalibrationStore'
+import { RotationCalibration } from './RotationCalibration'
 
 export function CalibrationPanel() {
   const armed = useCalibrationStore((s) => s.armed)
   const points = useCalibrationStore((s) => s.points)
   const ports = useCalibrationStore((s) => s.ports)
   const portKind = useCalibrationStore((s) => s.portKind)
+  const tab = useCalibrationStore((s) => s.tab)
+  const setTab = useCalibrationStore((s) => s.setTab)
   const arm = useCalibrationStore((s) => s.arm)
   const setPortKind = useCalibrationStore((s) => s.setPortKind)
   const removeLastPort = useCalibrationStore((s) => s.removeLastPort)
@@ -48,6 +51,25 @@ export function CalibrationPanel() {
         </p>
       </div>
 
+      <div className="calib__tabs">
+        <button
+          className={`calib__tab${tab === 'positions' ? ' calib__tab--active' : ''}`}
+          onClick={() => setTab('positions')}
+        >
+          Posiciones
+        </button>
+        <button
+          className={`calib__tab${tab === 'rotations' ? ' calib__tab--active' : ''}`}
+          onClick={() => setTab('rotations')}
+        >
+          Rotaciones
+        </button>
+      </div>
+
+      {tab === 'rotations' ? (
+        <RotationCalibration />
+      ) : (
+        <>
       <label className="calib__field">
         <span>Modelo de placa</span>
         <select
@@ -147,6 +169,8 @@ export function CalibrationPanel() {
       {status && <div className="calib__status">{status}</div>}
 
       <pre className="calib__json">{JSON.stringify(payload, null, 2)}</pre>
+        </>
+      )}
     </div>
   )
 }
