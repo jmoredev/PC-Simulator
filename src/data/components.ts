@@ -274,8 +274,8 @@ const RAW: RawComponent[] = [
     mountId: 'ram_slot_a',
     size: 1.33,
     variants: [
-      { model: '/assets/models/ram1.glb', rotation: [Math.PI / 2, Math.PI / 2, 0] },
-      { model: '/assets/models/ram2.glb', rotation: [Math.PI / 2, Math.PI / 2, 0] },
+      { model: '/assets/models/ram1.glb', rotation: [Math.PI / 2, -Math.PI / 2, 0] },
+      { model: '/assets/models/ram2.glb', rotation: [Math.PI / 2, 0, 0] },
     ],
     color: '#2f7d5b',
     description:
@@ -293,7 +293,7 @@ const RAW: RawComponent[] = [
     order: 5,
     mountId: 'm2_slot',
     size: 0.9,
-    rotation: [0, -Math.PI / 2, 0],
+    rotation: [0, Math.PI / 2, 0],
     color: '#1f6f8b',
     description:
       'Almacenamiento permanente. Aquí se guardan el sistema operativo, tus archivos, juegos y fotos aunque apagues el ordenador. Los SSD M.2 se conectan directamente a la placa y no tienen partes móviles, por eso son mucho más rápidos y silenciosos que un disco duro tradicional (HDD).',
@@ -311,8 +311,8 @@ const RAW: RawComponent[] = [
     mountId: 'pcie_slot',
     size: 2.4,
     variants: [
-      { model: '/assets/models/gpu-01.glb', rotation: [Math.PI / 2, Math.PI / 2, 0] },
-      { model: '/assets/models/gpu-02.glb' },
+      { model: '/assets/models/gpu-01.glb', rotation: [Math.PI / 2, -Math.PI / 2, 0] },
+      { model: '/assets/models/gpu-02.glb', rotation: [Math.PI, Math.PI, 0] },
     ],
     color: '#5b636f',
     description:
@@ -364,7 +364,6 @@ const RAW: RawComponent[] = [
     order: 21,
     mountId: 'mouse_area',
     size: 1.24,
-    rotation: [0, Math.PI, 0],
     color: '#333945',
     description:
       'Con él movemos el puntero por la pantalla. Un sensor óptico detecta el movimiento sobre la superficie y lo traduce en coordenadas. Sus botones permiten seleccionar, arrastrar y abrir elementos.',
