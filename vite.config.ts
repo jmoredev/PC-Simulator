@@ -36,6 +36,30 @@ function calibrationSaver(): Plugin {
           }
         })
       })
+
+      // Giros de la pestaña «Rotaciones» del calibrador: .scratch/rotations.json
+      server.middlewares.use('/__rotations', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        let body = ''
+        req.on('data', (chunk) => (body += chunk))
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body)
+            const file = resolve('.scratch/rotations.json')
+            mkdirSync(resolve('.scratch'), { recursive: true })
+            writeFileSync(file, JSON.stringify(data, null, 2) + '\n')
+            res.setHeader('content-type', 'application/json')
+            res.end(JSON.stringify({ ok: true, file }))
+          } catch (error) {
+            res.statusCode = 400
+            res.end(JSON.stringify({ ok: false, error: String(error) }))
+          }
+        })
+      })
     },
   }
 }

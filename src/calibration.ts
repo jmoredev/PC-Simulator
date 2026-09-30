@@ -11,6 +11,11 @@ export const DEBUG =
 
 export type Point = [number, number, number]
 
+export type RotationAxis = 'x' | 'y' | 'z'
+
+/** Pestañas del modo calibración: huecos de la placa o giros de los modelos. */
+export type CalibrationTab = 'positions' | 'rotations'
+
 export interface CalibrationSlot {
   id: string
   label: string

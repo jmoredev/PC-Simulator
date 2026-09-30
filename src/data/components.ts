@@ -2,7 +2,7 @@ import { STAGE_BY_ID, STAGES } from './stages'
 import { BOARD as ACTIVE_BOARD, boardModelUrl } from './boards'
 import { CABLES, DECOY_CABLES } from './cables'
 import { portLabel, portSize } from './ports'
-import type { ComponentDef, ComponentKind, MountPoint, StageId } from '../types'
+import type { ComponentDef, ComponentKind, MountPoint, StageId, Vec3 } from '../types'
 
 /* ------------------------------------------------------------------ *
  *  GEOMETRÍA
@@ -518,6 +518,104 @@ export const IDENTIFY_LABEL: Record<ComponentKind, string> = {
   'audio-mic': 'Jack micrófono',
   'usb-c': 'Cable USB-C',
   rj11: 'Cable teléfono',
+}
+
+/* ------------------------------------------------------------------ *
+ *  CALIBRACIÓN DE ROTACIONES
+ *  Catálogo estático de modelos que se pueden girar en la pestaña
+ *  «Rotaciones» del calibrador. Se construye a partir de RAW ANTES de
+ *  elegir variante, así que no depende de pickVariant ni de shuffleLayout.
+ * ------------------------------------------------------------------ */
+
+export interface RotationTarget {
+  /** Clave estable: el `model` de la variante, el `id` de la pieza plana o `board:<id>`. */
+  key: string
+  label: string
+  /** id de la pieza: localiza el placeholder procedural y la ruta por defecto del .glb. */
+  defId: string
+  /** null en la placa base (su placeholder es la geometría de Motherboard). */
+  kind: ComponentKind | null
+  color: string
+  /** Tamaño máximo para el auto-fit del modelo. */
+  size: number
+  /** Ruta explícita del .glb (las piezas planas la deduce modelUrl). */
+  model?: string
+  /** Giro de referencia tal cual está ahora en el código. */
+  baseRotation: Vec3
+  board?: boolean
+}
+
+function variantLabel(kind: ComponentKind, fallbackName: string, model: string): string {
+  const base = IDENTIFY_LABEL[kind] ?? fallbackName
+  const digits = (model.split('/').pop() ?? model).match(/\d+/)?.[0] ?? ''
+  return digits ? `${base} ${digits}` : base
+}
+
+export const ROTATION_TARGETS: RotationTarget[] = (() => {
+  const targets: RotationTarget[] = []
+  for (const raw of RAW) {
+    if (raw.category === 'conector' || raw.decoy) continue
+    if (raw.variants?.length) {
+      for (const variant of raw.variants) {
+        targets.push({
+          key: variant.model,
+          label: variantLabel(raw.kind, raw.name, variant.model),
+          defId: raw.id,
+          kind: raw.kind,
+          color: raw.color,
+          size: raw.size,
+          model: variant.model,
+          baseRotation: variant.rotation ?? [0, 0, 0],
+        })
+      }
+    } else if (raw.rotation) {
+      targets.push({
+        key: raw.id,
+        label: IDENTIFY_LABEL[raw.kind] ?? raw.name,
+        defId: raw.id,
+        kind: raw.kind,
+        color: raw.color,
+        size: raw.size,
+        baseRotation: raw.rotation,
+      })
+    }
+  }
+  targets.push({
+    key: `board:${ACTIVE_BOARD.id}`,
+    label: `Placa base — ${ACTIVE_BOARD.name}`,
+    defId: ACTIVE_BOARD.id,
+    kind: null,
+    color: '#334155',
+    size: ACTIVE_BOARD.size,
+    model: BOARD_MODEL.model,
+    baseRotation: ACTIVE_BOARD.rotation,
+    board: true,
+  })
+  return targets
+})()
+
+/** Ruta del .glb de un objetivo, para exportarla aunque la pieza no la declare. */
+export function rotationTargetModel(target: RotationTarget): string {
+  return target.model ?? `/assets/models/${target.defId}.glb`
+}
+
+/** Def mínimo para previsualizar un objetivo con ComponentVisual. */
+export function rotationPreviewDef(target: RotationTarget, rotation: Vec3): ComponentDef {
+  return {
+    id: target.defId,
+    kind: target.kind as ComponentKind,
+    stage: 'board',
+    name: target.label,
+    subtitle: '',
+    category: 'interno',
+    description: '',
+    order: 0,
+    size: target.size,
+    trayPos: [0, 0],
+    color: target.color,
+    model: target.model,
+    rotation,
+  }
 }
 
 /** Rejilla de los carteles de la identificación, más separada que la bandeja. */

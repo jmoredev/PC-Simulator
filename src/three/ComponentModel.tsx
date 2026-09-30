@@ -53,8 +53,12 @@ class ModelErrorBoundary extends Component<
 /**
  * Carga un .glb, lo gira, lo centra y lo escala para que ocupe `target`
  * unidades con la base en y=0. Así cualquier modelo sirve tal cual llegue.
+ *
+ * Ojo: el cálculo se memoriza por [scene, target, rotation], así que quien
+ * pase `rotation` debe dar un array NUEVO en cada cambio (mismo contenido
+ * pero otra referencia) o el modelo no se actualizará.
  */
-function GltfModel({ url, target, rotation }: { url: string; target: number; rotation: Vec3 }) {
+export function GltfModel({ url, target, rotation }: { url: string; target: number; rotation: Vec3 }) {
   const { scene } = useGLTF(url)
 
   const group = useMemo(() => {
@@ -88,7 +92,7 @@ function GltfModel({ url, target, rotation }: { url: string; target: number; rot
 }
 
 /** Modelo real si existe; si no, el `fallback` indicado (ya alineado). */
-function ModelOrFallback({
+export function ModelOrFallback({
   spec,
   fallback,
   rotation = IDENTITY,
