@@ -3,6 +3,7 @@ import {
   COMPONENT_BY_ID,
   MOUNTS_BY_STAGE,
   STAGE_STEPS,
+  TOTAL_STEPS,
   shuffleLayout,
 } from '../data/components'
 import { STAGES } from '../data/stages'
@@ -19,6 +20,8 @@ interface State {
   placed: Record<string, string>
   errors: number
   attempts: number
+  /** Piezas que se dejaron sin colocar al rendirse (solo examen). */
+  forfeited: number
   wrongFlash: string | null
   /** Marca de tiempo del último cambio de fase (para el aviso). */
   stageChangedAt: number
@@ -31,6 +34,8 @@ interface State {
   backToMenu: () => void
   /** Salta a la siguiente fase (solo en práctica). */
   skipStage: () => void
+  /** Rendirse de la fase actual y descontar lo que falte (solo examen). */
+  giveUp: () => void
   select: (id: string | null) => void
   beginDrag: (id: string, a: number, b: number) => void
   updateDrag: (a: number, b: number) => void
@@ -113,6 +118,7 @@ export const useGameStore = create<State>((set, get) => ({
   placed: {},
   errors: 0,
   attempts: 0,
+  forfeited: 0,
   wrongFlash: null,
   stageChangedAt: 0,
   lastCompletedStage: null,
@@ -131,6 +137,7 @@ export const useGameStore = create<State>((set, get) => ({
       placed: {},
       errors: 0,
       attempts: 0,
+      forfeited: 0,
       wrongFlash: null,
       stageChangedAt: 0,
       lastCompletedStage: null,
@@ -150,6 +157,7 @@ export const useGameStore = create<State>((set, get) => ({
       placed: {},
       errors: 0,
       attempts: 0,
+      forfeited: 0,
       wrongFlash: null,
       stageChangedAt: 0,
       lastCompletedStage: null,
@@ -173,6 +181,28 @@ export const useGameStore = create<State>((set, get) => ({
       wrongFlash: null,
       stageChangedAt: Date.now(),
       lastCompletedStage: STAGES[stageIndex].id,
+    })
+  },
+
+  giveUp: () => {
+    const { placed, stageIndex, forfeited } = get()
+    const stage = STAGES[stageIndex]
+    const filled = placedInStage(placed, stageIndex).size
+    const remaining = Math.max(0, STAGE_STEPS[stage.id] - filled)
+    const isLast = stageIndex >= STAGES.length - 1
+    set({
+      forfeited: forfeited + remaining,
+      selectedId: null,
+      dragging: false,
+      hoverMountId: null,
+      wrongFlash: null,
+      ...(isLast
+        ? { phase: 'finished' as Phase, finishedAt: Date.now() }
+        : {
+            stageIndex: stageIndex + 1,
+            stageChangedAt: Date.now(),
+            lastCompletedStage: stage.id,
+          }),
     })
   },
 
@@ -278,4 +308,19 @@ export function useCurrentStage(): Stage {
 
 export function currentStageProgress(placed: Record<string, string>, stageIndex: number) {
   return stageProgress(placed, stageIndex)
+}
+
+/** Valor en puntos de una colocación (y de un fallo) en el examen. */
+export const EXAM_POINT_VALUE = 100 / TOTAL_STEPS
+
+/** Nota del examen: 100 − valor × (fallos + piezas rendidas), con suelo en 0. */
+export function examScore(errors: number, forfeited: number): number {
+  return Math.max(0, Math.round(100 - EXAM_POINT_VALUE * (errors + forfeited)))
+}
+
+/** Color de la nota: rojo < 50, amarillo 50–<70, verde ≥ 70. */
+export function scoreColor(score: number): string {
+  if (score < 50) return '#f87171'
+  if (score < 70) return '#facc15'
+  return '#34d399'
 }

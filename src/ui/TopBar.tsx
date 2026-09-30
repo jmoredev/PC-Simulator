@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react'
 import { OPTIMIZED_MODELS } from '../data/boards'
 import { TOTAL_STEPS } from '../data/components'
 import { STAGES } from '../data/stages'
-import { useGameStore } from '../store/useGameStore'
+import { examScore, scoreColor, useGameStore } from '../store/useGameStore'
 
 export function TopBar() {
   const mode = useGameStore((s) => s.mode)
   const placed = useGameStore((s) => s.placed)
   const errors = useGameStore((s) => s.errors)
+  const forfeited = useGameStore((s) => s.forfeited)
   const startedAt = useGameStore((s) => s.startedAt)
   const stageIndex = useGameStore((s) => s.stageIndex)
   const reset = useGameStore((s) => s.reset)
   const backToMenu = useGameStore((s) => s.backToMenu)
   const skipStage = useGameStore((s) => s.skipStage)
+  const giveUp = useGameStore((s) => s.giveUp)
 
   const [now, setNow] = useState<number>(() => Date.now())
   useEffect(() => {
@@ -23,6 +25,7 @@ export function TopBar() {
   const done = Object.keys(placed).length
   const total = TOTAL_STEPS
   const pct = (done / total) * 100
+  const score = mode === 'exam' ? examScore(errors, forfeited) : null
   const seconds = Math.max(0, Math.floor((now - startedAt) / 1000))
   const mm = Math.floor(seconds / 60)
   const ss = (seconds % 60).toString().padStart(2, '0')
@@ -47,9 +50,9 @@ export function TopBar() {
 
       <div className="spacer" />
 
-      {mode === 'exam' && (
-        <span className="badge" style={{ color: '#fca5a5' }}>
-          Fallos: {errors}
+      {mode === 'exam' && score !== null && (
+        <span className="badge" style={{ color: scoreColor(score) }}>
+          Puntos: {score}
         </span>
       )}
       <span className="badge">
@@ -74,6 +77,15 @@ export function TopBar() {
           title="Pasar a la siguiente fase sin terminar esta"
         >
           Saltar fase →
+        </button>
+      )}
+      {mode === 'exam' && (
+        <button
+          className="btn btn--ghost"
+          onClick={giveUp}
+          title="Rendirte de esta fase: pierdes los puntos de lo que falte y pasas a la siguiente"
+        >
+          Rendirse →
         </button>
       )}
       <button className="btn" onClick={backToMenu}>

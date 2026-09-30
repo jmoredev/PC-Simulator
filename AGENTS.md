@@ -144,7 +144,7 @@ Reglas de layout:
 | 11 | **Dos entradas: arrastrar-y-soltar y clic-y-clic** | El ratón/trackpad del aula no siempre permite arrastrar cómodo; el clic sobre la zona iluminada es más accesible. |
 | 12 | **No se pierde la pieza al fallar** | Para la ESO es más tolerable: si sueltas mal, sigues con la pieza seleccionada y puedes reintentar. `Esc` cancela. |
 | 13 | **Avance automático de fase + aviso central** | Menos fricción: al completar una fase la cámara se mueve sola y aparece un cartel con lo siguiente. |
-| 14 | **El examen no muestra zonas ni etiquetas** | Sin pistas de verdad; solo hay feedback al acertar o fallar. Cada fallo resta 10 puntos. |
+| 14 | **El examen no muestra zonas ni etiquetas** | Sin pistas de verdad; solo hay feedback al acertar o fallar. La puntuación proporcional está en la decisión 43. |
 | 15 | **Un solo sentido de montaje por pieza**, sin validar el orden | Se puede montar en cualquier orden; las pistas de la fase en práctica indican qué toca. |
 | 16 | **Optimización obligatoria de los `.glb`** (`npm run models:optimize`) | Los modelos originales sumaban 225 MB (texturas de 4096 px). Con WebP 1024 + cuantización + simplificación se quedan en ~13 MB (94 % menos), que sí se puede servir en el aula. |
 | 17 | **Compresión sin decodificadores externos**: `KHR_mesh_quantization` + `EXT_texture_webp` | three.js las soporta de serie, así que `useGLTF` carga los modelos sin configurar DRACO ni meshopt (y sin depender de una CDN). |
@@ -173,6 +173,10 @@ Reglas de layout:
 | 40 | **En práctica hay un botón para saltar de fase** (`skipStage`) | Para poder ir directo al montaje sin completar la identificación. En examen no aparece. |
 | 41 | **Solo un módulo de RAM y un cable señuelo** (USB-C) | Con dos módulos había que repetir el mismo gesto dos veces y el RJ-11 sobraba; los dos huecos de RAM siguen ahí y valen indistintamente. |
 | 42 | **Créditos por archivo** (`CREDITS.md` + Menú → Créditos y licencias) | Los modelos son de terceros y casi todos CC con atribución; hay que citar autor, fuente, licencia y **los cambios** (están optimizados). La tabla de `CREDITS.md` y `src/data/credits.ts` se mantienen en paralelo. |
+| 43 | **Examen con 100 puntos proporcionales** | Se reparte `100 / TOTAL_STEPS` por colocación. Un fallo resta el valor de una pieza; rendirse resta el valor de cada pieza que falte; suelo en 0. Nota final en grande: rojo < 50, amarillo 50–<70, verde ≥ 70 (`examScore`, `scoreColor` en `useGameStore`). |
+| 44 | **Botón «Rendirse» en el examen** (`giveUp`) | Solo en modo examen: descuenta las piezas no colocadas de la fase y avanza (o termina en la última). Sustituye al «Saltar fase» de práctica. |
+| 45 | **Placa base aleatoria por carga de página** | Sin `?board`, cada visita nueva elige una placa al azar (`boards.ts`). `?board=<id>` la fija (calibración y tests). En calibración sin `?board` se usa la primera. |
+| 46 | **Jitter aleatorio en mesa y bandeja** (`shuffleLayout`) | Además del barajado, cada pieza recibe un desplazamiento aleatorio de ±0,4 u para que la disposición no salga igual cada partida. Los huecos de montaje no se tocan. |
 
 ## 7. Pipeline de assets 3D
 

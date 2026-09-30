@@ -574,8 +574,14 @@ export function shuffleLayout(): void {
     const order = shuffle(defs.length)
     defs.forEach((def, i) => {
       const [x, z] = traySlot(stage, order[i])
-      if (stage === 'identify') def.identifyPos = [x, z]
-      else def.trayPos = [x, z]
+      // Pequeño desplazamiento aleatorio para que la mesa no salga igual en
+      // cada partida (los huecos de montaje no se tocan).
+      const pos: [number, number] = [
+        x + (Math.random() - 0.5) * 0.8,
+        z + (Math.random() - 0.5) * 0.8,
+      ]
+      if (stage === 'identify') def.identifyPos = pos
+      else def.trayPos = pos
     })
   }
 

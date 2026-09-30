@@ -146,7 +146,7 @@ const browser = await puppeteer.launch({
 
 /* ---------- 2. Partida completa ---------- */
 {
-  const { page, errors } = await newPage(browser, BASE_URL)
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
   await wait(1500)
   ;(await page.$$('button.mode-card'))[0].click()
   await wait(3500)

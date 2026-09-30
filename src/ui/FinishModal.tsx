@@ -1,6 +1,6 @@
 import { COMPONENTS, MOUNTS, TOTAL_STEPS } from '../data/components'
 import { STAGES } from '../data/stages'
-import { useGameStore } from '../store/useGameStore'
+import { examScore, scoreColor, useGameStore } from '../store/useGameStore'
 
 function formatTime(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000))
@@ -12,6 +12,7 @@ function formatTime(ms: number): string {
 export function FinishModal() {
   const mode = useGameStore((s) => s.mode)
   const errors = useGameStore((s) => s.errors)
+  const forfeited = useGameStore((s) => s.forfeited)
   const startedAt = useGameStore((s) => s.startedAt)
   const finishedAt = useGameStore((s) => s.finishedAt)
   const attempts = useGameStore((s) => s.attempts)
@@ -19,29 +20,46 @@ export function FinishModal() {
   const backToMenu = useGameStore((s) => s.backToMenu)
 
   const elapsed = finishedAt ? finishedAt - startedAt : 0
-  const score = mode === 'exam' ? Math.max(0, 100 - errors * 10) : 100
+  const isExam = mode === 'exam'
+  const score = isExam ? examScore(errors, forfeited) : 100
   const accuracy = attempts > 0 ? Math.round((TOTAL_STEPS / attempts) * 100) : 100
 
   return (
     <div className="overlay">
       <div className="card">
-        <h1>{mode === 'exam' ? 'Examen terminado' : '¡Montaje completado!'}</h1>
+        <h1>{isExam ? 'Examen terminado' : '¡Montaje completado!'}</h1>
         <p className="lead">
           Has completado las {STAGES.length} fases del montaje: {TOTAL_STEPS}{' '}
           colocaciones con {COMPONENTS.length} componentes en {MOUNTS.length} sitios.
         </p>
 
+        {isExam && (
+          <div className="finish-score" style={{ color: scoreColor(score) }}>
+            <div className="finish-score__num">{score}</div>
+            <div className="finish-score__lbl">Puntuación sobre 100</div>
+          </div>
+        )}
+
         <div className="score-grid">
-          <div className="score-box">
-            <div className="val" style={{ color: score >= 70 ? '#34d399' : '#f87171' }}>
-              {score}
+          {isExam ? (
+            <>
+              <div className="score-box">
+                <div className="val">{errors}</div>
+                <div className="lbl">Fallos</div>
+              </div>
+              <div className="score-box">
+                <div className="val">{forfeited}</div>
+                <div className="lbl">Sin colocar</div>
+              </div>
+            </>
+          ) : (
+            <div className="score-box">
+              <div className="val" style={{ color: '#34d399' }}>
+                100
+              </div>
+              <div className="lbl">Nota / 100</div>
             </div>
-            <div className="lbl">Nota / 100</div>
-          </div>
-          <div className="score-box">
-            <div className="val">{errors}</div>
-            <div className="lbl">Fallos</div>
-          </div>
+          )}
           <div className="score-box">
             <div className="val">{formatTime(elapsed)}</div>
             <div className="lbl">Tiempo</div>
@@ -50,8 +68,8 @@ export function FinishModal() {
 
         <p className="lead" style={{ marginBottom: 0 }}>
           Precisión: <b>{accuracy}%</b> ({attempts} intentos).{' '}
-          {mode === 'exam'
-            ? 'En el modo examen cada fallo resta 10 puntos.'
+          {isExam
+            ? 'Cada fallo y cada pieza sin colocar restan puntos.'
             : 'Practica de nuevo para bajar el tiempo.'}
         </p>
 

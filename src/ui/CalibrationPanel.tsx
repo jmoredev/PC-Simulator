@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { BOARD_SLOTS, PORT_KINDS, PORT_SLOT, deriveLayout, type Point } from '../calibration'
-import { BOARD_ID } from '../data/boards'
+import { BOARD_ID, BOARDS } from '../data/boards'
 import { useCalibrationStore } from '../store/useCalibrationStore'
 
 export function CalibrationPanel() {
@@ -12,11 +12,10 @@ export function CalibrationPanel() {
   const setPortKind = useCalibrationStore((s) => s.setPortKind)
   const removeLastPort = useCalibrationStore((s) => s.removeLastPort)
   const clear = useCalibrationStore((s) => s.clear)
-  const [boardId, setBoardId] = useState(BOARD_ID)
   const [status, setStatus] = useState('')
 
   const layout = deriveLayout(points, ports)
-  const payload = { boardId, points, ports, layout }
+  const payload = { boardId: BOARD_ID, points, ports, layout }
   const markingPort = armed === PORT_SLOT
 
   const save = async () => {
@@ -50,8 +49,21 @@ export function CalibrationPanel() {
       </div>
 
       <label className="calib__field">
-        <span>Modelo de placa (id)</span>
-        <input value={boardId} onChange={(e) => setBoardId(e.target.value)} />
+        <span>Modelo de placa</span>
+        <select
+          value={BOARD_ID}
+          onChange={(e) => {
+            const params = new URLSearchParams(window.location.search)
+            params.set('board', e.target.value)
+            window.location.search = params.toString()
+          }}
+        >
+          {BOARDS.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name} — {b.id}
+            </option>
+          ))}
+        </select>
       </label>
 
       <div className="calib__slots">

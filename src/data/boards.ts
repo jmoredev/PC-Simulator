@@ -168,7 +168,22 @@ function boardIdFromUrl(): string | null {
   return id && BOARDS.some((b) => b.id === id) ? id : null
 }
 
-/** Placa activa: la de `?board=<id>` o la primera del registro. */
-export const BOARD_ID = boardIdFromUrl() ?? DEFAULT_BOARD_ID
+/** ¿Se está calibrando? (en calibración, sin `?board`, se usa la primera placa). */
+function isCalibrating(): boolean {
+  if (typeof window === 'undefined') return false
+  return new URLSearchParams(window.location.search).has('calibrate')
+}
+
+function randomBoardId(): string {
+  return BOARDS[Math.floor(Math.random() * BOARDS.length)].id
+}
+
+/**
+ * Placa activa: la de `?board=<id>`, o una al azar por carga de página.
+ * En calibración, si no hay `?board`, se usa la primera del registro para que
+ * el calibrador sea determinista.
+ */
+export const BOARD_ID =
+  boardIdFromUrl() ?? (isCalibrating() ? DEFAULT_BOARD_ID : randomBoardId())
 
 export const BOARD: BoardDef = BOARDS.find((b) => b.id === BOARD_ID) ?? BOARDS[0]
