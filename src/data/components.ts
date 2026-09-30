@@ -520,17 +520,27 @@ export const IDENTIFY_LABEL: Record<ComponentKind, string> = {
   rj11: 'Cable teléfono',
 }
 
+/** Rejilla de los carteles de la identificación, más separada que la bandeja. */
+const PLATE_COLS = [-3.6, -1.8, 0, 1.8, 3.6]
+const PLATE_Z0 = -1.05
+const PLATE_DZ = 0.95
+
+function plateSlot(index: number, rowCount: number): [number, number] {
+  const col = Math.min(Math.floor(index / rowCount), PLATE_COLS.length - 1)
+  const row = index % rowCount
+  return [PLATE_COLS[col], PLATE_Z0 - row * PLATE_DZ]
+}
+
 /** Carteles de la identificación: uno por pieza, con el nombre de su tipo. */
 function identifyMounts(): MountPoint[] {
-  const { cols, rows } = STAGE_BY_ID.identify.tray
+  const rowCount = Math.ceil(COMPONENTS.length / PLATE_COLS.length)
   return COMPONENTS.map((def, index) => {
-    const col = Math.min(Math.floor(index / rows.length), cols.length - 1)
-    const row = index % rows.length
+    const [x, z] = plateSlot(index, rowCount)
     return {
       id: `identify_${index}`,
       stage: 'identify' as const,
       label: IDENTIFY_LABEL[def.kind] ?? def.name,
-      position: [cols[col], 0.09, -1.15 - row * 0.62],
+      position: [x, 0.09, z],
       accepts: [def.kind],
       snapRadius: 0.6,
       size: [1.0, 0.4],
@@ -572,11 +582,10 @@ export function shuffleLayout(): void {
   // Los carteles se barajan aparte: si no, cada pieza caería sobre el suyo.
   const plates = MOUNTS_BY_STAGE.identify
   const plateOrder = shuffle(plates.length)
-  const { cols, rows } = STAGE_BY_ID.identify.tray
+  const rowCount = Math.ceil(plates.length / PLATE_COLS.length)
   plates.forEach((mount, i) => {
-    const slot = plateOrder[i]
-    const col = Math.min(Math.floor(slot / rows.length), cols.length - 1)
-    mount.position = [cols[col], 0.09, -1.15 - (slot % rows.length) * 0.62]
+    const [x, z] = plateSlot(plateOrder[i], rowCount)
+    mount.position = [x, 0.09, z]
   })
 
   // Y se sortea la variante de las piezas que tengan varias (p. ej. la CPU).

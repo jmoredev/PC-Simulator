@@ -19,6 +19,8 @@ import { ComponentVisual } from './ComponentModel'
 import { ConnectorPlug } from './ConnectorPlug'
 import { CALIBRATE, DEBUG, rearCameraFrom } from '../calibration'
 import { BOARD } from '../data/boards'
+import { connectorImageUrl } from '../data/assets'
+import { portSize } from '../data/ports'
 import { CalibrationPicker } from './CalibrationPicker'
 import { DebugGrid } from './DebugGrid'
 import { MountZone } from './MountZone'
@@ -226,24 +228,38 @@ function DragGhost({ stage }: { stage: Stage }) {
 
   const vertical = isVertical(stage)
   const mount = hoverMountId ? MOUNT_BY_ID[hoverMountId] : null
+  // Conectores sin imagen PNG: usan el enchufe 3D (ConnectorPlug) anclado al
+  // cursor, igual que quedará colocado, en vez del placeholder procedural que
+  // se dibujaba desplazado en el plano vertical.
+  const usePlug =
+    vertical && def.category === 'conector' && !connectorImageUrl(def.kind)
+
   let position: [number, number, number]
   if (mount) {
-    position = vertical
-      ? [mount.position[0] - 0.12, mount.position[1], mount.position[2]]
-      : [mount.position[0], mount.position[1] + 0.05, mount.position[2]]
+    position = usePlug
+      ? [mount.position[0], mount.position[1], mount.position[2]]
+      : vertical
+        ? [mount.position[0] - 0.12, mount.position[1], mount.position[2]]
+        : [mount.position[0], mount.position[1] + 0.05, mount.position[2]]
   } else if (stage.drop.kind === 'vertical') {
-    position = [stage.drop.x - 0.12, dragPos[0], dragPos[1]]
+    position = usePlug
+      ? [stage.drop.x, dragPos[0], dragPos[1]]
+      : [stage.drop.x - 0.12, dragPos[0], dragPos[1]]
   } else {
     position = [dragPos[0], stage.drop.y + 0.08, dragPos[1]]
   }
 
   return (
     <group position={position}>
-      <ComponentVisual
-        def={def}
-        yaw={mount?.angle ?? MOUNT_BY_ID[def.mountId ?? '']?.angle ?? 0}
-        vertical={vertical}
-      />
+      {usePlug ? (
+        <ConnectorPlug def={def} size={mount?.size ?? portSize(def.kind)} />
+      ) : (
+        <ComponentVisual
+          def={def}
+          yaw={mount?.angle ?? MOUNT_BY_ID[def.mountId ?? '']?.angle ?? 0}
+          vertical={vertical}
+        />
+      )}
       <mesh
         position={[0, 0.01, 0]}
         rotation={vertical ? [0, -Math.PI / 2, 0] : [-Math.PI / 2, 0, 0]}
