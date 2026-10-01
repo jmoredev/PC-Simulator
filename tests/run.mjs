@@ -31,16 +31,21 @@ function findChrome() {
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function newPage(browser, url) {
+async function newPage(browser, url, seed) {
   const page = await browser.newPage()
   await page.setViewport({ width: 1400, height: 900 })
   const errors = []
+  const warns = []
   page.on('pageerror', (e) => errors.push(e.message))
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push('console: ' + m.text())
+    if (m.type() === 'warn') warns.push(m.text())
   })
+  // seed: siembra localStorage ANTES de que arranque la app (el store la lee
+  // al importar el módulo, así que después de goto ya sería tarde).
+  if (seed) await page.evaluateOnNewDocument(seed)
   await page.goto(url, { waitUntil: 'networkidle0', timeout: 180000 })
-  return { page, errors }
+  return { page, errors, warns }
 }
 
 /**
@@ -266,8 +271,175 @@ async function examGiveUpGuard() {
   await page.close()
 }
 
+/* ---------- 4. ?board= desconocido: aviso y placa por defecto ---------- */
+async function unknownBoardGuard() {
+  // La placa activa se lee del <select> del calibrador (value={BOARD_ID} en
+  // CalibrationPanel.tsx): determinista y sin depender de que exista el .glb.
+  // Solo vale en ?calibrate=1, donde la placa activa nunca se sortea al azar.
+  const activeBoardId = (page) =>
+    page.$eval('.calib__field select', (el) => el.value).catch(() => null)
+
+  {
+    const { page, errors, warns } = await newPage(browser, `${BASE_URL}/?calibrate=1&board=no-existe`)
+    const panel = await page.waitForSelector('.calib', { timeout: 60000 }).catch(() => null)
+    check('placa desconocida: panel de calibración visible', !!panel)
+    check('placa desconocida: aviso en consola que nombra el id recibido', warns.some((t) => t.includes('no-existe')), warns.join(' | '))
+    check('placa desconocida: cae a la placa por defecto', (await activeBoardId(page)) === 'motherboard-01', String(await activeBoardId(page)))
+    check('placa desconocida: sin errores', errors.length === 0, errors.join(' | '))
+    await page.close()
+  }
+
+  {
+    // Caso de control: el mismo selector con un id válido debe dar OTRO
+    // resultado, para demostrar que la aserción discrimina de verdad.
+    const { page, errors } = await newPage(browser, `${BASE_URL}/?calibrate=1&board=motherboard-02`)
+    const panel = await page.waitForSelector('.calib', { timeout: 60000 }).catch(() => null)
+    check('placa válida: panel de calibración visible', !!panel)
+    const id = await activeBoardId(page)
+    check('placa válida: se usa la placa pedida', id === 'motherboard-02', String(id))
+    check('placa válida: sin errores', errors.length === 0, errors.join(' | '))
+    await page.close()
+  }
+}
+
+/* ---------- 5. Rotaciones corruptas en localStorage no blankan el panel ---------- */
+async function rotationsGuard() {
+  // Claves reales del código, no inventadas: pc-sim-rotations es ROTATIONS_KEY
+  // (useCalibrationStore.ts) y «board:<id>» es el formato de ROTATION_TARGETS
+  // (components.ts). Con ?board=motherboard-01 en calibración, la placa activa
+  // es fija y el objetivo — y su clave — son deterministas.
+  // El seed se serializa al navegador sin sus cierres: cada variante lleva
+  // todos los valores como literales, sin ninguna variable libre.
+  const seedCorrupt = () => {
+    localStorage.setItem(
+      'pc-sim-rotations',
+      JSON.stringify({
+        tab: 'rotations',
+        rotations: { 'board:motherboard-01': 1 },
+        selectedTarget: 'board:motherboard-01',
+      }),
+    )
+  }
+  const seedValid = () => {
+    localStorage.setItem(
+      'pc-sim-rotations',
+      JSON.stringify({
+        tab: 'rotations',
+        rotations: { 'board:motherboard-01': [0.35, -1.2, 2.5] },
+        selectedTarget: 'board:motherboard-01',
+      }),
+    )
+  }
+
+  {
+    // Valor corrupto (un número donde toca un Vec3): antes de la guardia
+    // llegaba al .map() y en blanco el panel entero.
+    const { page, errors } = await newPage(browser, `${BASE_URL}/?calibrate=1&board=motherboard-01`, seedCorrupt)
+    const panel = await page.waitForSelector('.rot-calc', { timeout: 60000 }).catch(() => null)
+    check('rotaciones corruptas: el panel de rotaciones sigue ahí', !!panel)
+    const touched = await page.$$eval('.rot-calc__target-value', (els) => els.length)
+    check('rotaciones corruptas: el valor inválido no se muestra', touched === 0, `${touched}`)
+    check('rotaciones corruptas: sin errores', errors.length === 0, errors.join(' | '))
+    await page.close()
+  }
+
+  {
+    // Caso de control: una rotación bien guardada NO se puede perder — si la
+    // guardia descartara valores legítimos, esto fallaría.
+    const { page, errors } = await newPage(browser, `${BASE_URL}/?calibrate=1&board=motherboard-01`, seedValid)
+    const panel = await page.waitForSelector('.rot-calc', { timeout: 60000 }).catch(() => null)
+    check('rotaciones válidas: el panel de rotaciones sigue ahí', !!panel)
+    const value = await page
+      .$eval('.rot-calc__target--active .rot-calc__target-value', (el) => el.textContent.trim())
+      .catch(() => null)
+    check('rotaciones válidas: el valor guardado se muestra', value === '0.35, -1.2, 2.5', String(value))
+    check('rotaciones válidas: sin errores', errors.length === 0, errors.join(' | '))
+    await page.close()
+  }
+}
+/* ---------- 6. ?board= desconocido FUERA de calibración: caída determinista ---------- */
+async function unknownBoardNoCalibration() {
+  // Fuera de calibración no hay <select> del calibrador: la placa activa solo
+  // se ve en la petición de su .glb (boardModelUrl en boards.ts). Ese modelo
+  // se pinta al montar StageBoard → BoardBase, y la placa NO está en la
+  // bandeja de la identificación, así que la petición no ocurre hasta saltar
+  // a la fase 2 con «Saltar fase →».
+  const PLACAS = '/assets/models/placas/'
+
+  /** ARRANCA en práctica y salta la identificación; devuelve las peticiones
+   *  del .glb de la placa y el nivel (texto del badge) en que se quedó.
+   *  El listener se cuelga tras goto pero antes de ningún clic: nada pide el
+   *  modelo de la placa en la pantalla inicial. */
+  const loadToBoardStage = async (url) => {
+    const { page, errors } = await newPage(browser, url)
+    const urls = []
+    page.on('request', (req) => {
+      if (req.url().includes(PLACAS)) urls.push(req.url())
+    })
+    const menuCard = await page
+      .waitForSelector('button.mode-card', { timeout: 60000 })
+      .catch(() => null)
+    if (!menuCard) return { page, errors, urls, level: null }
+    await menuCard.click()
+    const topbar = await page.waitForSelector('.topbar', { timeout: 60000 }).catch(() => null)
+    if (!topbar) return { page, errors, urls, level: null }
+    // «Saltar fase →» (TopBar, solo en práctica): pasa a la fase de la placa.
+    await page.evaluate(() => {
+      const btn = [...document.querySelectorAll('.topbar button')].find((b) =>
+        b.textContent?.includes('Saltar fase'),
+      )
+      if (btn) btn.click()
+    })
+    let level = null
+    for (let t = 0; t < 30 && !level; t++) {
+      await wait(300)
+      level = await page
+        .$eval('.badge--stage', (el) => el.textContent.trim())
+        .then((t) => (t === '2. Placa base' ? t : null))
+        .catch(() => null)
+    }
+    if (level) await wait(2000) // deja hueco a que llegue la petición del .glb
+    return { page, errors, urls, level }
+  }
+
+  // El nombre del archivo pedido es el id de la placa activa: tres cargas
+  // frescas con el MISMO id desconocido deben pedir SIEMPRE la de por
+  // defecto. Antes de la guardia el id era al azar (1 de 27 que las tres
+  // cargas coincidan): esta aserción distingue el fix del comportamiento viejo.
+  const seen = []
+  for (let n = 1; n <= 3; n++) {
+    const { page, errors, urls, level } = await loadToBoardStage(`${BASE_URL}/?board=no-existe`)
+    const names = urls.map((u) => u.split(PLACAS)[1] ?? u)
+    seen.push(...names)
+    check(`placa desconocida sin calibrar: carga ${n} llega a la fase de la placa`, level === '2. Placa base', String(level))
+    check(`placa desconocida sin calibrar: carga ${n} pide el modelo de la placa`, urls.length >= 1, names.join(' | '))
+    check(`placa desconocida sin calibrar: carga ${n} pide motherboard-01.glb`, urls.length >= 1 && urls.every((u) => u.endsWith(`${PLACAS}motherboard-01.glb`)), names.join(' | '))
+    check(`placa desconocida sin calibrar: carga ${n} sin errores`, errors.length === 0, errors.join(' | '))
+    await page.close()
+  }
+  check(
+    'placa desconocida sin calibrar: las tres cargas pidieron lo mismo',
+    seen.length >= 3 && seen.every((n) => n === 'motherboard-01.glb'),
+    seen.join(' | '),
+  )
+
+  {
+    // Control: con un id válido debe pedirse ESE modelo. Si el observable
+    // fuera constante (p. ej. siempre la primera placa), esto fallaría.
+    const { page, errors, urls, level } = await loadToBoardStage(`${BASE_URL}/?board=motherboard-03`)
+    const names = urls.map((u) => u.split(PLACAS)[1] ?? u)
+    check('placa válida sin calibrar: llega a la fase de la placa', level === '2. Placa base', String(level))
+    check('placa válida sin calibrar: pide motherboard-03.glb', urls.length >= 1 && urls.every((u) => u.endsWith(`${PLACAS}motherboard-03.glb`)), names.join(' | '))
+    check('placa válida sin calibrar: sin errores', errors.length === 0, errors.join(' | '))
+    await page.close()
+  }
+}
+
 await fullGame()
 await examGiveUpGuard()
+await unknownBoardGuard()
+await rotationsGuard()
+await unknownBoardNoCalibration()
 
 await browser.close()
 console.log(failures === 0 ? '\nTODO OK' : `\n${failures} comprobaciones fallidas`)
