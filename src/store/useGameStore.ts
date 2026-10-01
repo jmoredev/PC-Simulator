@@ -185,6 +185,13 @@ export const useGameStore = create<State>((set, get) => ({
   },
 
   giveUp: () => {
+    const { mode, phase, finishedAt, stageChangedAt } = get()
+    // El cartel de fase es pointer-events: none y la barra superior sigue
+    // montada, así que el segundo clic de un doble clic llega otra vez a
+    // «Rendirse» y rendiría dos fases (en la última, descontaría dos veces
+    // lo mismo). Guardia silenciosa: sin confirmación visible.
+    if (mode !== 'exam' || phase !== 'building' || finishedAt !== null) return
+    if (Date.now() - stageChangedAt < 500) return
     const { placed, stageIndex, forfeited } = get()
     const stage = STAGES[stageIndex]
     const filled = placedInStage(placed, stageIndex).size

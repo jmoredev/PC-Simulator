@@ -165,7 +165,15 @@ export function boardModelUrl(board: BoardDef): string {
 function boardIdFromUrl(): string | null {
   if (typeof window === 'undefined') return null
   const id = new URLSearchParams(window.location.search).get('board')
-  return id && BOARDS.some((b) => b.id === id) ? id : null
+  // Sin `?board=` se decide más abajo (al azar, o la primera en calibración);
+  // con un id desconocido (typo o calibración obsoleta) se avisa y se usa la
+  // placa por defecto, para que la carga sea reproducible.
+  if (id === null) return null
+  if (BOARDS.some((b) => b.id === id)) return id
+  console.warn(
+    `?board=${id} no coincide con ninguna placa registrada: se usa la placa por defecto (${DEFAULT_BOARD_ID}).`,
+  )
+  return DEFAULT_BOARD_ID
 }
 
 /** ¿Se está calibrando? (en calibración, sin `?board`, se usa la primera placa). */

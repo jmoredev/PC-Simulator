@@ -25,6 +25,16 @@ interface RotationsStored {
   selectedTarget: string | null
 }
 
+const isVec3 = (v: unknown): v is Vec3 =>
+  Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n))
+
+// Un valor corrupto en localStorage (p. ej. {"rotations":{"ssd":1}}) llegaba
+// al .map() de RotationCalibration y en blanco el panel entero.
+function isRotationMap(v: unknown): v is Record<string, Vec3> {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return false
+  return Object.values(v).every(isVec3)
+}
+
 interface State extends Stored {
   /** Hueco que se está marcando (null = ninguna). */
   armed: string | null
@@ -78,7 +88,7 @@ function readRotations(): RotationsStored {
     if (raw && typeof raw === 'object') {
       return {
         tab: raw.tab === 'rotations' ? 'rotations' : 'positions',
-        rotations: raw.rotations ?? {},
+        rotations: isRotationMap(raw.rotations) ? raw.rotations : {},
         selectedTarget: raw.selectedTarget ?? null,
       }
     }
