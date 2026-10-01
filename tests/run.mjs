@@ -119,8 +119,8 @@ const browser = await puppeteer.launch({
 /* ---------- 1. Modo calibración ---------- */
 {
   const { page, errors } = await newPage(browser, `${BASE_URL}/?calibrate=1`)
-  await wait(5000)
-  check('calibración: panel visible', !!(await page.$('.calib')))
+  const panel = await page.waitForSelector('.calib', { timeout: 60000 }).catch(() => null)
+  check('calibración: panel visible', !!panel)
   const slots = await page.$$('.calib__slots .calib__slot')
   check('calibración: 6 huecos', slots.length === 6, `${slots.length}`)
 
@@ -145,15 +145,23 @@ const browser = await puppeteer.launch({
 }
 
 /* ---------- 2. Partida completa ---------- */
-{
+async function fullGame() {
   const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
-  await wait(1500)
-  ;(await page.$$('button.mode-card'))[0].click()
+  const menuCard = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .catch(() => null)
+  check('partida: menú de modos visible', !!menuCard)
+  if (!menuCard) {
+    check('partida: sin errores', errors.length === 0, errors.join(' | '))
+    await page.close()
+    return
+  }
+  await menuCard.click()
   await wait(3500)
 
   const placedCount = () => page.$$eval('.comp-item--placed', (els) => els.length)
 
-  // Fase 1: identificar las 20 piezas
+  // Fase 1: identificar las 18 piezas
   for (let i = 0; i < IDENTIFY; i++) {
     await place(page, i)
   }
@@ -165,6 +173,7 @@ const browser = await puppeteer.launch({
   }
 
   // Fase 3: arrastrar un cable desde la barra inferior hasta su puerto
+  const beforeDrag = await placedCount()
   let dragged = false
   const bar = await page.$('.connbar__item')
   if (bar) {
@@ -184,7 +193,7 @@ const browser = await puppeteer.launch({
     await wait(300)
     await page.mouse.up()
     await wait(900)
-    dragged = true
+    dragged = (await placedCount()) > beforeDrag
   }
   const afterDrag = await placedCount()
   check(
@@ -206,6 +215,59 @@ const browser = await puppeteer.launch({
   check('partida: sin errores', errors.length === 0, errors.join(' | '))
   await page.close()
 }
+
+/* ---------- 3. Examen: guardia contra el doble clic en «Rendirse» ---------- */
+async function examGiveUpGuard() {
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('examen: menú de modos visible', menuCards.length >= 2, `${menuCards.length}`)
+  if (menuCards.length < 2) {
+    await page.close()
+    return
+  }
+  await menuCards[1].click() // la segunda tarjeta es «Modo examen» (ModeMenu)
+  const topbar = await page.waitForSelector('.topbar', { timeout: 60000 }).catch(() => null)
+  check('examen: barra superior visible', !!topbar)
+  if (!topbar) {
+    await page.close()
+    return
+  }
+  await wait(500)
+  check('examen: modo examen activo', !!(await page.$('.badge--exam')))
+
+  const stageBadge = () => page.$eval('.badge--stage', (el) => el.textContent.trim())
+  const scoreBadge = () =>
+    page.$$eval('.topbar .badge', (els) =>
+      els.map((el) => el.textContent ?? '').find((t) => t.startsWith('Puntos:')) ?? '',
+    )
+  const beforeStage = await stageBadge()
+  const beforeScore = await scoreBadge()
+  // Dos clics seguidos dentro de la ventana de 500 ms del guardia
+  await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('.topbar button')].find((b) =>
+      b.textContent?.includes('Rendirse'),
+    )
+    if (!btn) return
+    btn.click()
+    btn.click()
+  })
+  await wait(500)
+  const afterStage = await stageBadge()
+  const afterScore = await scoreBadge()
+  // Rendirse en la fase 1 sin piezas colocadas resta IDENTIFY piezas:
+  // 100 − (100/PLACEABLE) × IDENTIFY, redondeado.
+  const expectedScore = Math.round(100 - (100 / PLACEABLE) * IDENTIFY)
+  check('examen: solo avanza una fase', beforeStage === '1. Identificación' && afterStage === '2. Placa base', `${beforeStage} → ${afterStage}`)
+  check('examen: solo pierde una fase de puntos', afterScore === `Puntos: ${expectedScore}`, `${beforeScore || '—'} → ${afterScore} (esperado ${expectedScore})`)
+  check('examen: sin errores', errors.length === 0, errors.join(' | '))
+  await page.close()
+}
+
+await fullGame()
+await examGiveUpGuard()
 
 await browser.close()
 console.log(failures === 0 ? '\nTODO OK' : `\n${failures} comprobaciones fallidas`)
