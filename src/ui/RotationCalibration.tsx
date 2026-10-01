@@ -32,6 +32,7 @@ export function RotationCalibration() {
   const nudgeRotation = useCalibrationStore((s) => s.nudgeRotation)
   const resetRotation = useCalibrationStore((s) => s.resetRotation)
   const [status, setStatus] = useState('')
+  const [fallback, setFallback] = useState<string | null>(null)
 
   const target =
     ROTATION_TARGETS.find((t) => t.key === selectedTarget) ?? ROTATION_TARGETS[0] ?? null
@@ -66,9 +67,21 @@ export function RotationCalibration() {
     }
   }
 
+  const copyText = async (text: string, ok: string) => {
+    try {
+      // En http (el aula con la IP de la LAN) navigator.clipboard no existe.
+      if (!navigator.clipboard) throw new Error('portapapeles no disponible')
+      await navigator.clipboard.writeText(text)
+      setFallback(null)
+      setStatus(ok)
+    } catch {
+      setFallback(text)
+      setStatus('No se pudo copiar (¿estás en http?): cópialo a mano de aquí abajo')
+    }
+  }
+
   const copyTriplet = async () => {
-    await navigator.clipboard.writeText(`[${current.map(round3).join(', ')}]`)
-    setStatus('Triplet copiado al portapapeles')
+    await copyText(`[${current.map(round3).join(', ')}]`, 'Triplet copiado al portapapeles')
   }
 
   const copySnippet = async () => {
@@ -79,8 +92,7 @@ export function RotationCalibration() {
       setStatus('Todavía no has girado ningún modelo')
       return
     }
-    await navigator.clipboard.writeText(lines.join('\n') + '\n')
-    setStatus('Snippet copiado al portapapeles')
+    await copyText(lines.join('\n') + '\n', 'Snippet copiado al portapapeles')
   }
 
   return (
@@ -164,6 +176,16 @@ export function RotationCalibration() {
       </div>
 
       {status && <div className="calib__status">{status}</div>}
+
+      {fallback && (
+        <textarea
+          className="rot-calc__fallback"
+          readOnly
+          value={fallback}
+          rows={Math.min(fallback.split('\n').length, 12)}
+          onFocus={(e) => e.currentTarget.select()}
+        />
+      )}
     </div>
   )
 }

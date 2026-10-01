@@ -37,8 +37,15 @@ export function CalibrationPanel() {
   }
 
   const copy = async () => {
-    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
-    setStatus('JSON copiado al portapapeles')
+    const text = JSON.stringify(payload, null, 2)
+    try {
+      // En http (el aula con la IP de la LAN) navigator.clipboard no existe.
+      if (!navigator.clipboard) throw new Error('portapapeles no disponible')
+      await navigator.clipboard.writeText(text)
+      setStatus('JSON copiado al portapapeles')
+    } catch {
+      setStatus('No se pudo copiar: el JSON de abajo se puede seleccionar a mano')
+    }
   }
 
   return (
