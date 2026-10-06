@@ -9,13 +9,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-# Un despliegue en marcha nunca se cancela: se encolan los demás.
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,11 +20,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Un pull request solo compila: publicar lo hace únicamente el push a main.
+      # Un pull request solo compila: publicar lo hace únicamente `main`.
       - run: npm run build
         env:
           BASE_PATH: /PC-Simulator/
-      - uses: actions/configure-pages@v5
+      # Si alguien toca la variable, la build se pone en rojo en vez de publicar
+      # una página en blanco con las rutas sin la base.
+      - name: Comprobar que las rutas llevan la base de Pages
+        run: grep -q "/PC-Simulator/assets/" dist/index.html
+      # Sin `actions/configure-pages`: no usamos ninguna de sus salidas y exige
+      # que Pages ya esté activado, lo que ponía en rojo la build de los PR.
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -42,6 +40,15 @@ jobs:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    # Un despliegue en marcha nunca se cancela: se encolan los demás. El grupo
+    # vive en el job y no en el workflow para que las build de los PR no hagan
+    # cola detrás de un despliegue.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
