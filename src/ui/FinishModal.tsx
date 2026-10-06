@@ -13,6 +13,7 @@ export function FinishModal() {
   const mode = useGameStore((s) => s.mode)
   const errors = useGameStore((s) => s.errors)
   const forfeited = useGameStore((s) => s.forfeited)
+  const placed = useGameStore((s) => s.placed)
   const startedAt = useGameStore((s) => s.startedAt)
   const finishedAt = useGameStore((s) => s.finishedAt)
   const attempts = useGameStore((s) => s.attempts)
@@ -29,8 +30,10 @@ export function FinishModal() {
       <div className="card">
         <h1>{isExam ? 'Examen terminado' : '¡Montaje completado!'}</h1>
         <p className="lead">
-          Has completado las {STAGES.length} fases del montaje: {TOTAL_STEPS}{' '}
-          colocaciones con {COMPONENTS.length} componentes en {MOUNTS.length} sitios.
+          {isExam
+            ? `Has resuelto ${Object.keys(placed).length} de ${TOTAL_STEPS} colocaciones.` +
+              (forfeited > 0 ? ' Has entregado alguna fase sin terminar.' : '')
+            : `Has completado las ${STAGES.length} fases del montaje: ${TOTAL_STEPS} colocaciones con ${COMPONENTS.length} componentes en ${MOUNTS.length} sitios.`}
         </p>
 
         {isExam && (
