@@ -171,6 +171,10 @@ export const useGameStore = create<State>((set, get) => ({
     set({ phase: 'menu', stageIndex: 0, selectedId: null, dragging: false }),
 
   skipStage: () => {
+    const { mode, phase, finishedAt } = get()
+    // Guardia silenciosa, espejo de la de giveUp: «solo práctica» (decisión 40)
+    // se cumple en el estado, no solo en el botón que la interfaz oculta.
+    if (mode !== 'practice' || phase !== 'building' || finishedAt !== null) return
     const { stageIndex } = get()
     if (stageIndex >= STAGES.length - 1) return
     set({
