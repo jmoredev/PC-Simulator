@@ -9,6 +9,11 @@ on:
 
 permissions:
   contents: read
+# Serializa los runs del mismo ref (los push a `main`), no los de los PR:
+# dos push seguidos no pueden desplegarse en desorden.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -40,12 +45,6 @@ jobs:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
-    # Un despliegue en marcha nunca se cancela: se encolan los demás. El grupo
-    # vive en el job y no en el workflow para que las build de los PR no hagan
-    # cola detrás de un despliegue.
-    concurrency:
-      group: pages
-      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write
