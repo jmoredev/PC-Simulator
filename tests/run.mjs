@@ -129,12 +129,53 @@ const browser = await puppeteer.launch({
   const slots = await page.$$('.calib__slots .calib__slot')
   check('calibración: 6 huecos', slots.length === 6, `${slots.length}`)
 
+  // Assert on the store, not on a label: the armed slot already shows
+  // "clic 1/1…" (with digits) before storing anything, so the old assertion
+  // passed even if the click stored nothing.
+  const readState = () =>
+    page
+      .$eval('.calib__json', (el) => JSON.parse(el.textContent ?? 'null'))
+      .catch(() => null)
+  const totalPoints = (state) =>
+    state && state.points
+      ? Object.values(state.points).reduce((n, arr) => n + ((arr && arr.length) || 0), 0)
+      : -1
+
   await slots[0].click()
   await wait(300)
-  await page.mouse.click(700, 430)
-  await wait(400)
-  const first = await page.$eval('.calib__slot-value', (el) => el.textContent)
-  check('calibración: registra un punto', /-?\d/.test(first), first)
+  const before = await readState()
+  const n0 = totalPoints(before)
+
+  // Like place(), scan candidate points until the stored count grows: start at
+  // the canvas centre and try small offsets. Fail loudly if nothing is stored.
+  const canvasBox = await (await page.$('canvas')).boundingBox()
+  const cx = Math.round(canvasBox.x + canvasBox.width / 2)
+  const cy = Math.round(canvasBox.y + canvasBox.height / 2)
+  let after = null
+  for (const [dx, dy] of [[0, 0], [0, -20], [0, 20], [-20, 0], [20, 0], [-20, -20], [20, 20]]) {
+    await page.mouse.click(cx + dx, cy + dy)
+    await wait(400)
+    after = await readState()
+    if (totalPoints(after) > n0) break
+    after = null
+  }
+  const n1 = totalPoints(after)
+  check(
+    'calibración: registra un punto',
+    n1 === n0 + 1,
+    `puntos antes ${n0}, después ${n1}; points=${JSON.stringify(after ? after.points : null)}`,
+  )
+
+  // The new point must be a real coordinate: exactly one, with 3 finite numbers.
+  const added = after
+    ? Object.entries(after.points).flatMap(([slot, arr]) => {
+        const prev = (before && before.points && before.points[slot]) || []
+        return prev.length < arr.length ? arr.slice(prev.length) : []
+      })
+    : []
+  const okShape =
+    added.length === 1 && added[0].length === 3 && added[0].every((v) => Number.isFinite(v))
+  check('calibración: el punto nuevo es una coordenada válida', okShape, JSON.stringify(added))
 
   const saved = await page.evaluate(async () => {
     const res = await fetch('/__calibration', {
