@@ -100,5 +100,9 @@ function boardModels(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Sitio de proyecto en GitHub Pages: se sirve desde /PC-Simulator/. El
+  // workflow de despliegue exporta BASE_PATH=/PC-Simulator/; sin esa variable
+  // todo queda en / (desarrollo y npm run preview).
+  base: process.env.BASE_PATH ?? '/',
   plugins: [react(), calibrationSaver(), boardModels()],
 })

@@ -158,7 +158,7 @@ export const OPTIMIZED_MODELS =
 /** Ruta del modelo: la original en desarrollo y la publicada en producción. */
 export function boardModelUrl(board: BoardDef): string {
   if (board.model) return board.model
-  const path = `/assets/models/placas/${board.id}.glb`
+  const path = `${import.meta.env.BASE_URL}assets/models/placas/${board.id}.glb`
   return OPTIMIZED_MODELS ? `${path}?optimized=1` : path
 }
 

@@ -21,7 +21,7 @@ export interface ModelSpec {
 export function modelUrl(def: ModelSpec): string | undefined {
   if (def.procedural) return undefined
   if (def.model) return def.model
-  return USE_MODELS ? `/assets/models/${def.id}.glb` : undefined
+  return USE_MODELS ? `${import.meta.env.BASE_URL}assets/models/${def.id}.glb` : undefined
 }
 
 export function textureUrl(def: ComponentDef): string | undefined {

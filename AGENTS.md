@@ -96,6 +96,9 @@ PC-Simulator/
 ├── AGENTS.md                # este archivo
 ├── CREDITS.md               # autor, fuente y licencia de cada modelo e imagen
 ├── README.md                # documentación para docentes / usuarios
+├── .github/
+│   └── workflows/
+│       └── deploy-pages.yml # publica en GitHub Pages al hacer push a main
 ├── vite.config.ts           # plugin de dev que guarda la calibración
 └── .env.example             # plantilla para activar los modelos .glb
 ```
@@ -179,6 +182,7 @@ Reglas de layout:
 | 46 | **Jitter aleatorio en mesa y bandeja** (`shuffleLayout`) | Además del barajado, cada pieza recibe un desplazamiento aleatorio de ±0,4 u para que la disposición no salga igual cada partida. Los huecos de montaje no se tocan. |
 | 47 | **Pestaña «Rotaciones» en el calibrador** (`ROTATION_TARGETS`) | El giro correcto de cada `.glb` tampoco se puede deducir. En `?calibrate=1` hay dos pestañas: «Posiciones» (la de siempre) y «Rotaciones», donde se gira el modelo en vivo por ejes y se exportan los radianes a `.scratch/rotations.json` para copiarlos a `variants[].rotation` o a `boards.ts`. |
 | 48 | **Guardia silenciosa en «Rendirse»** (`giveUp`) | La acción sale sin hacer nada salvo en examen, durante el montaje y con la partida sin terminar: así «solo examen» (decisión 44) se cumple en el estado y no solo en el botón. Además ignora una segunda pulsación inmediata (ventana de 500 ms): el cartel de fase es `pointer-events: none` y la barra sigue montada, así que el segundo clic de un doble clic llegaría otra vez al botón, rendiría dos fases y en la última descontaría dos veces. Sin confirmación visible: un alumno nunca pierde dos fases por despiste. |
+| 49 | **Publicado en GitHub Pages como sitio de proyecto** (`deploy-pages.yml`) | La web pública quedará en `https://jmoredev.github.io/PC-Simulator/` (subruta de sitio de proyecto) una vez activado Pages en el repositorio: el `base` de Vite sale de `BASE_PATH`, que el workflow exporta como `/PC-Simulator/` (sin esa variable todo queda en `/` para desarrollo y preview). Los pull requests hacia `main` solo compilan; publicar lo hace únicamente un push a `main` (el job de despliegue exige además `github.ref == refs/heads/main`, así que una ejecución manual sobre otra rama tampoco publica). Los modelos de placa se publican **tal cual** precisamente para no mover la calibración (`mounts`, `rear`, `ports` se midieron sobre esos `.glb` exactos). |
 
 ## 7. Pipeline de assets 3D
 
@@ -196,6 +200,12 @@ Cada placa es un `.glb` **sin optimizar** en `models-originales/placas/<id>.glb`
 `vite.config.ts` sirve `/assets/models/placas/<id>.glb` desde ahí, así el modelo
 se ve nítido y no engorda el repo. La placa activa se elige con `?board=<id>` y
 se registra en `src/data/boards.ts`.
+
+**No lances `npm run dev` con `BASE_PATH`**: el plugin monta su ruta de forma
+literal (`/assets/models/placas`), así que con un `base` distinto de `/` el
+middleware deja de coincidir y el desarrollo serviría en silencio las copias
+comprimidas de `public/` en vez de los originales de `models-originales/`.
+`BASE_PATH` es solo para `npm run build`.
 
 Cada entrada de `boards.ts` lleva:
 
@@ -334,3 +344,18 @@ No hay suite de tests automáticos. Antes de dar por bueno un cambio:
 El arnés de `tests/` usa Chromium headless vía `puppeteer-core` y es la forma
 rápida de detectar regresiones en la colocación de piezas, el avance de fase y
 el conteo de fallos.
+
+## 11. Despliegue (GitHub Pages)
+
+- **URL pública (tras activar Pages):** <https://jmoredev.github.io/PC-Simulator/>
+- **Una sola vez:** en el repositorio, Settings → Pages → Source =
+  «GitHub Actions». A partir de ahí, cada push a `main` compila y publica solo
+  (el workflow `.github/workflows/deploy-pages.yml`); los pull requests hacia
+  `main` solo compilan, nunca publican. Para republicar a mano, lanza «Run
+  workflow» **sobre `main`**: el job de despliegue exige
+  `github.ref == refs/heads/main`.
+- **Limitación conocida:** en el sitio publicado, «Guardar en el proyecto» del
+  modo calibración no puede escribir el JSON, porque el endpoint
+  `/__calibration` solo existe en el servidor de desarrollo (`configureServer`
+  de `vite.config.ts`). En producción sigue funcionando el botón «Copiar
+  JSON», que lo deja en el portapapeles para pegarlo a mano.

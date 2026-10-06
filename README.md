@@ -6,6 +6,20 @@ didáctica para cada componente.
 
 ![modos](https://img.shields.io/badge/modos-práctica%20%7C%20examen-38bdf8)
 
+## Versión publicada
+
+La versión online para el aula se publica desde la rama `main` en
+<https://jmoredev.github.io/PC-Simulator/>.
+
+- **Una sola vez**, para que el sitio exista: en el repositorio, **Settings →
+  Pages → Source = «GitHub Actions»**. Después, cada push a `main` publica solo;
+  los pull requests solo comprueban la build.
+- El botón «Guardar en el proyecto» del modo calibración solo funciona en
+  desarrollo (necesita el servidor de Vite); en la versión publicada se puede
+  usar «Copiar JSON».
+- Para republicar a mano: pestaña **Actions** del repositorio → el workflow
+  «Publicar en GitHub Pages» → **Run workflow**, eligiendo la rama `main`.
+
 ## Qué incluye
 
 - **Montaje en 4 fases**, cada una con su propia escena 3D:

@@ -238,8 +238,8 @@ const RAW: RawComponent[] = [
     mountId: 'cpu_socket',
     size: 0.5,
     variants: [
-      { model: '/assets/models/cpu-01.glb', rotation: [-Math.PI / 2, 0, 0] },
-      { model: '/assets/models/cpu-02.glb' },
+      { model: `${import.meta.env.BASE_URL}assets/models/cpu-01.glb`, rotation: [-Math.PI / 2, 0, 0] },
+      { model: `${import.meta.env.BASE_URL}assets/models/cpu-02.glb` },
     ],
     color: '#c9ced6',
     description:
@@ -274,8 +274,8 @@ const RAW: RawComponent[] = [
     mountId: 'ram_slot_a',
     size: 1.33,
     variants: [
-      { model: '/assets/models/ram1.glb', rotation: [Math.PI / 2, -Math.PI / 2, 0] },
-      { model: '/assets/models/ram2.glb', rotation: [Math.PI / 2, 0, 0] },
+      { model: `${import.meta.env.BASE_URL}assets/models/ram1.glb`, rotation: [Math.PI / 2, -Math.PI / 2, 0] },
+      { model: `${import.meta.env.BASE_URL}assets/models/ram2.glb`, rotation: [Math.PI / 2, 0, 0] },
     ],
     color: '#2f7d5b',
     description:
@@ -311,8 +311,8 @@ const RAW: RawComponent[] = [
     mountId: 'pcie_slot',
     size: 2.4,
     variants: [
-      { model: '/assets/models/gpu-01.glb', rotation: [Math.PI / 2, -Math.PI / 2, 0] },
-      { model: '/assets/models/gpu-02.glb', rotation: [Math.PI, Math.PI, 0] },
+      { model: `${import.meta.env.BASE_URL}assets/models/gpu-01.glb`, rotation: [Math.PI / 2, -Math.PI / 2, 0] },
+      { model: `${import.meta.env.BASE_URL}assets/models/gpu-02.glb`, rotation: [Math.PI, Math.PI, 0] },
     ],
     color: '#5b636f',
     description:
@@ -595,7 +595,7 @@ export const ROTATION_TARGETS: RotationTarget[] = (() => {
 
 /** Ruta del .glb de un objetivo, para exportarla aunque la pieza no la declare. */
 export function rotationTargetModel(target: RotationTarget): string {
-  return target.model ?? `/assets/models/${target.defId}.glb`
+  return target.model ?? `${import.meta.env.BASE_URL}assets/models/${target.defId}.glb`
 }
 
 /** Def mínimo para previsualizar un objetivo con ComponentVisual. */
