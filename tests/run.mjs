@@ -136,15 +136,18 @@ const browser = await puppeteer.launch({
     page
       .$eval('.calib__json', (el) => JSON.parse(el.textContent ?? 'null'))
       .catch(() => null)
-  const totalPoints = (state) =>
-    state && state.points
-      ? Object.values(state.points).reduce((n, arr) => n + ((arr && arr.length) || 0), 0)
-      : -1
+  // null = payload no leído (R3-TEST-POINTS-DEREF): el diagnóstico nunca debe
+  // dar un número de puntos negativo, pero la aserción sigue fallando igual.
+  const readPoints = (state) => {
+    if (!state || !state.points || typeof state.points !== 'object') return null
+    return Object.values(state.points).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0)
+  }
+  const fmtPoints = (n) => (n === null ? 'no leído' : String(n))
 
   await slots[0].click()
   await wait(300)
   const before = await readState()
-  const n0 = totalPoints(before)
+  const nBefore = readPoints(before)
 
   // Like place(), scan candidate points until the stored count grows: start at
   // the canvas centre and try small offsets. Fail loudly if nothing is stored.
@@ -156,14 +159,14 @@ const browser = await puppeteer.launch({
     await page.mouse.click(cx + dx, cy + dy)
     await wait(400)
     after = await readState()
-    if (totalPoints(after) > n0) break
+    if (readPoints(after) !== null && readPoints(after) > (nBefore ?? -1)) break
     after = null
   }
-  const n1 = totalPoints(after)
+  const nAfter = readPoints(after)
   check(
     'calibración: registra un punto',
-    n1 === n0 + 1,
-    `puntos antes ${n0}, después ${n1}; points=${JSON.stringify(after ? after.points : null)}`,
+    nBefore !== null && nAfter !== null && nAfter === nBefore + 1,
+    `puntos antes ${fmtPoints(nBefore)}, después ${fmtPoints(nAfter)}; points=${JSON.stringify(after ? after.points : null)}`,
   )
 
   // The new point must be a real coordinate: exactly one, with 3 finite numbers.
@@ -527,8 +530,93 @@ async function unknownBoardNoCalibration() {
   }
 }
 
+/* ---------- 7. Guardia de skipStage: solo práctica, durante el montaje ---------- */
+async function skipStageGuard() {
+  // La guardia vive en la ACCIÓN del store (useGameStore.ts), no en el botón:
+  // TopBar oculta «Saltar fase» fuera de práctica (decisión 40), así que la UI
+  // sola no puede probarla. Se importa por /src/… porque en el servidor de dev
+  // esa URL resuelve a la MISMA instancia de useGameStore que usa la app.
+  const callSkipStage = (page) =>
+    page.evaluate(() =>
+      import('/src/store/useGameStore.ts').then((m) => m.useGameStore.getState().skipStage()),
+    )
+  const stageBadge = (page) =>
+    page.$eval('.badge--stage', (el) => el.textContent.trim()).catch(() => '<sin badge de fase>')
+
+  // Arranca en el modo cards[modeIndex] y espera la barra superior.
+  const startMode = async (modeIndex, label) => {
+    const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+    const cards = await page
+      .waitForSelector('button.mode-card', { timeout: 60000 })
+      .then(() => page.$$('button.mode-card'))
+      .catch(() => [])
+    check(`${label}: menú de modos visible`, cards.length >= 2, `${cards.length}`)
+    if (cards.length < 2) {
+      await page.close()
+      return null
+    }
+    await cards[modeIndex].click()
+    const topbar = await page.waitForSelector('.topbar', { timeout: 60000 }).catch(() => null)
+    check(`${label}: barra superior visible`, !!topbar)
+    if (!topbar) {
+      await page.close()
+      return null
+    }
+    await wait(500)
+    return { page, errors }
+  }
+
+  // Control positivo: en PRÁCTICA la misma llamada del store SÍ avanza. Sin
+  // esto, la aserción negativa pasaría en vacío si el import dinámico fallara.
+  {
+    const ctx = await startMode(0, 'skipStage práctica')
+    if (ctx) {
+      const before = await stageBadge(ctx.page)
+      await callSkipStage(ctx.page)
+      await wait(500)
+      const after = await stageBadge(ctx.page)
+      check(
+        'skipStage práctica: la acción del store avanza una fase',
+        before === '1. Identificación' && after === '2. Placa base',
+        `${before} → ${after}`,
+      )
+      check('skipStage práctica: sin errores', ctx.errors.length === 0, ctx.errors.join(' | '))
+      await ctx.page.close()
+    }
+  }
+
+  // Caso negativo: en EXAMEN el guardia (mode !== 'practice') impide el salto
+  // aunque se llame a la acción directamente.
+  {
+    const ctx = await startMode(1, 'skipStage examen')
+    if (ctx) {
+      // Decisión 40: el botón no existe en la barra fuera de práctica.
+      const buttons = await ctx.page.$$eval('.topbar button', (els) =>
+        els.map((el) => el.textContent?.trim() ?? ''),
+      )
+      check(
+        'skipStage examen: «Saltar fase» no está en la barra',
+        !buttons.some((t) => t.includes('Saltar fase')),
+        buttons.join(' | '),
+      )
+      const before = await stageBadge(ctx.page)
+      await callSkipStage(ctx.page)
+      await wait(500)
+      const after = await stageBadge(ctx.page)
+      check(
+        'skipStage examen: la acción real NO avanza la fase',
+        before === '1. Identificación' && after === before,
+        `${before} → ${after}`,
+      )
+      check('skipStage examen: sin errores', ctx.errors.length === 0, ctx.errors.join(' | '))
+      await ctx.page.close()
+    }
+  }
+}
+
 await fullGame()
 await examGiveUpGuard()
+await skipStageGuard()
 await unknownBoardGuard()
 await rotationsGuard()
 await unknownBoardNoCalibration()
