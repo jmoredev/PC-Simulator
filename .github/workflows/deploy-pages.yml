@@ -1,0 +1,56 @@
+name: Publicar en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+# Serializa los runs del mismo ref (los push a `main`), no los de los PR:
+# dos push seguidos no pueden desplegarse en desorden.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Un pull request solo compila: publicar lo hace únicamente `main`.
+      - run: npm run build
+        env:
+          BASE_PATH: /PC-Simulator/
+      # Si alguien toca la variable, la build se pone en rojo en vez de publicar
+      # una página en blanco con las rutas sin la base.
+      - name: Comprobar que las rutas llevan la base de Pages
+        run: grep -q "/PC-Simulator/assets/" dist/index.html
+      # Sin `actions/configure-pages`: no usamos ninguna de sus salidas y exige
+      # que Pages ya esté activado, lo que ponía en rojo la build de los PR.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    # Solo publica un push a `main`, o un «Run workflow» lanzado sobre `main`:
+    # ni los pull requests ni una ejecución manual sobre otra rama llegan aquí.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

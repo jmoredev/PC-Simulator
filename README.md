@@ -6,13 +6,31 @@ didáctica para cada componente.
 
 ![modos](https://img.shields.io/badge/modos-práctica%20%7C%20examen-38bdf8)
 
+## Versión publicada
+
+La versión online para el aula se publica desde la rama `main` en
+<https://jmoredev.github.io/PC-Simulator/>.
+
+- **Una sola vez**, para que el sitio exista: en el repositorio, **Settings →
+  Pages → Source = «GitHub Actions»**. Después, cada push a `main` publica solo;
+  los pull requests solo comprueban la build.
+- El botón «Guardar en el proyecto» del modo calibración solo funciona en
+  desarrollo (necesita el servidor de Vite); en la versión publicada se puede
+  usar «Copiar JSON».
+- Para republicar a mano: pestaña **Actions** del repositorio → el workflow
+  «Publicar en GitHub Pages» → **Run workflow**, eligiendo la rama `main`.
+
 ## Qué incluye
 
-- **Montaje en 3 fases**, cada una con su propia escena 3D:
-  1. **Sobre la placa base**: CPU, disipador, 2× RAM, SSD M.2 y tarjeta gráfica.
-  2. **Dentro de la caja**: se instala la **placa ya montada**, la fuente de
-     alimentación y 2 ventiladores en una caja abierta.
-  3. **Periféricos**: monitor, teclado, ratón y altavoces a **escala realista**
+- **Montaje en 4 fases**, cada una con su propia escena 3D:
+  1. **Identifica las piezas**: están todas sobre la mesa (incluidos los cables)
+     y hay que llevar cada una a su cartel con el nombre; el cartel se pone
+     verde al acertar.
+  2. **Sobre la placa base**: CPU, disipador, la RAM, SSD M.2 y tarjeta gráfica.
+  3. **Parte trasera del PC**: hay que conectar cada cable (HDMI, DisplayPort,
+     DVI, VGA, USB, red, PS/2 y jacks de audio) con su puerto. Algunos cables
+     **no encajan en ningún sitio**: hay que darse cuenta y dejarlos.
+  4. **Periféricos**: monitor, teclado, ratón y altavoces a **escala realista**
      junto al PC ya montado.
 - **Modo práctica**: al coger una pieza se ilumina su hueco en verde con el
   nombre del sitio.
@@ -41,15 +59,17 @@ Otros comandos:
 npm run build     # comprueba tipos y genera la versión de producción en dist/
 npm run preview   # sirve la versión de producción
 npm run lint      # oxlint
+npm run models:optimize   # comprime los .glb de public/assets/models
 ```
-
 ## Controles
 
-- **Arrastrar y soltar**: coge una pieza de la bandeja y llévala a su sitio.
+- **Arrastrar y soltar**: coge una pieza de la bandeja (o, en la fase de
+  conectores, un cable de la barra inferior) y llévala a su sitio.
 - **Clic y clic**: haz clic en una pieza de la bandeja (o de la lista) y luego
   en la zona iluminada (solo en modo práctica).
 - **Ratón**: botón izquierdo para girar la cámara, rueda para acercar/alejar.
 - **Esc**: cancela el arrastre en curso.
+- **Ayuda**: la tarjeta de controles se abre y se cierra con el botón `?`.
 
 ## Desarrollo y ramas
 
@@ -67,20 +87,103 @@ npm install
 Las decisiones de diseño, la estructura de carpetas y las convenciones están
 documentadas en [`AGENTS.md`](AGENTS.md).
 
+## Pruebas
+
+Con el servidor de desarrollo levantado:
+
+```bash
+node tests/run.mjs     # calibración + partida completa de las 3 fases
+```
+
+Usa Chromium headless (`puppeteer-core`) instalado aparte en `tests/`, así que
+no añade dependencias a la app.
+
 ## Modelos 3D (opcional)
 
 El simulador trae figuras 3D hechas por código, así que **funciona desde el
 primer momento**. Para usar modelos reales con texturas:
 
 1. Mete los archivos en `public/assets/models/`.
-2. Copia `.env.example` a `.env` (con `VITE_USE_MODELS=true`).
-3. Reinicia el servidor de desarrollo.
+2. Listo: se usan automáticamente. Para desactivarlos, `.env` con
+   `VITE_USE_MODELS=false`.
 
 Los nombres exactos de los archivos y sus especificaciones están en
 [`public/assets/models/README.md`](public/assets/models/README.md).
 
 El cargador **centra y reescala** cada modelo automáticamente, y si un archivo
 falta o falla, ese componente vuelve a su forma procedural sin romper nada.
+
+Los `.glb` originales suelen pesar demasiado para el aula (los de este proyecto
+sumaban 225 MB). Pásales el compresor antes de subirlos y quedan en ~13 MB:
+
+```bash
+npm run models:optimize -- --backup models-originales
+```
+
+Los originales sin optimizar se guardan en `models-originales/`, que está
+ignorado por git.
+
+### Varias placas base (sin comprimir)
+
+Cada placa base es un `.glb` **sin optimizar** en `models-originales/placas/`,
+con el nombre del id de la placa:
+
+```
+models-originales/placas/motherboard-01.glb
+models-originales/placas/motherboard-02.glb
+```
+
+Esa carpeta está ignorada por git, así que el modelo **no se comprime ni se sube**
+(y por eso se ve nítido). En desarrollo, Vite lo sirve directamente desde ahí.
+
+Para elegir la placa activa, añade `?board=<id>` a la URL:
+
+```
+http://localhost:5173/?board=motherboard-02
+```
+
+El registro de placas está en [`src/data/boards.ts`](src/data/boards.ts). Para
+dar de alta una placa nueva, añade su entrada con su `id`, `size` (dimensión
+mayor en unidades, 1 u ≈ 10 cm) y `rotation`.
+
+### Imágenes de los conectores (fase 2)
+
+Los conectores de la parte trasera no son modelos 3D: son **imágenes PNG** con el
+conector visto de frente y fondo transparente, en
+[`src/assets/connectors/`](src/assets/connectors/). El archivo se llama igual que
+el conector (`hdmi.png`, `usb.png`, `audio-out.png`…) y se tumba sobre el panel.
+
+Los nombres exactos y el formato están en
+[`src/assets/connectors/README.md`](src/assets/connectors/README.md). Si falta un
+PNG, ese conector se dibuja con su forma procedural y todo sigue funcionando.
+
+### Calibrar una placa nueva
+
+Cada placa tiene los huecos en sitios distintos. Para una placa nueva:
+
+```bash
+npm run dev
+# abre http://localhost:5173/?calibrate=1&board=<id>
+```
+
+Se marca el zócalo de la CPU con un clic y cada ranura (RAM ×2, M.2, PCIe) con
+**dos clics, uno en cada extremo**. Después se marcan las dos esquinas de la
+**chapa trasera** (al elegirla, la cámara se pone **de frente** para que quede
+exacta) y, con el selector de *Puertos traseros*, se va eligiendo el tipo de
+conector y clicando sobre cada puerto del modelo.
+
+Al pulsar **Guardar en el proyecto** se escribe
+`.scratch/calibration-<id>.json`, y esas coordenadas se vuelcan en
+`src/data/boards.ts` (huecos, chapa y puertos). El modo solo existe en desarrollo.
+
+Con esos datos, la **fase 2 se genera sola**: un cable por cada tipo de conector
+que tenga la placa y un hueco por puerto. La cámara se pone **de frente a la chapa
+trasera** (así se distingue cada puerto, aunque estén apilados en vertical) y los
+cables, que son **imágenes PNG**, se arrastran desde la **barra inferior de
+cables** hasta su puerto; al conectarlos se dibuja un conector 3D con su
+latiguillo. La placa se sigue viendo en 3D tal y como se montó. Los cables que no
+encajan en ningún puerto de esa placa (USB-C, RJ-11) van como señuelo y no
+cuentan para terminar.
 
 ## Cómo añadir o cambiar componentes
 
@@ -109,14 +212,14 @@ src/
 ├── three/
 │   ├── Scene.tsx        # escena, luces, banco, bandeja, arrastre y cámara
 │   ├── StageBoard.tsx   # fase 1: placa base sobre la alfombrilla
-│   ├── StageCase.tsx    # fase 2: caja abierta con bandeja, bahía y anclajes
+│   ├── StagePorts.tsx   # fase 2: panel de puertos trasero tumbado
 │   ├── StagePeripherals.tsx # fase 3: escritorio y torre terminada
 │   ├── Motherboard.tsx  # placa base y sus zócalos
-│   ├── ComponentModel.tsx # carga .glb + placa ensamblada + fallback
+│   ├── ComponentModel.tsx # carga .glb + auto-fit + fallback
 │   ├── Placeholder.tsx  # geometría procedural de cada componente
 │   ├── MountZone.tsx    # zonas resaltadas de los huecos
 │   └── primitives.tsx   # cajas, cilindros y esferas reutilizables
-├── ui/                  # menú, lista por fases, ficha, progreso y resultados
+├── ui/                  # menú, lista por fases, ficha, progreso, resultados y leyenda
 └── App.tsx              # composición del lienzo y la interfaz
 ```
 
@@ -126,6 +229,14 @@ src/
 - [Three.js](https://threejs.org/) con [@react-three/fiber](https://r3f.docs.pmnd.rs/)
   y [@react-three/drei](https://github.com/pmndrs/drei)
 - [Zustand](https://zustand.docs.pmnd.rs/) para el estado
+
+## Créditos y licencias
+
+Los modelos 3D y las imágenes de los conectores son obra de sus autores y se usan
+bajo la licencia que se indica **archivo por archivo** en [`CREDITS.md`](CREDITS.md).
+También se pueden consultar dentro del simulador, en
+**Menú → Créditos y licencias**. Los modelos 3D están **optimizados para la web**,
+así que se citan como adaptados.
 
 ## Notas para el aula
 

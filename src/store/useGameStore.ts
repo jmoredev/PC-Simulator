@@ -1,13 +1,13 @@
 import { create } from 'zustand'
 import {
-  COMPONENTS,
   COMPONENT_BY_ID,
   MOUNTS_BY_STAGE,
+  STAGE_STEPS,
+  TOTAL_STEPS,
+  shuffleLayout,
 } from '../data/components'
 import { STAGES } from '../data/stages'
-import type { GameMode, Phase, Stage, StageId } from '../types'
-
-const WRONG_DROP_RADIUS = 0.9
+import type { GameMode, MountPoint, Phase, Stage, StageId, Vec3 } from '../types'
 
 interface State {
   mode: GameMode
@@ -20,6 +20,8 @@ interface State {
   placed: Record<string, string>
   errors: number
   attempts: number
+  /** Piezas que se dejaron sin colocar al rendirse (solo examen). */
+  forfeited: number
   wrongFlash: string | null
   /** Marca de tiempo del último cambio de fase (para el aviso). */
   stageChangedAt: number
@@ -30,17 +32,30 @@ interface State {
   start: (mode: GameMode) => void
   reset: () => void
   backToMenu: () => void
+  /** Salta a la siguiente fase (solo en práctica). */
+  skipStage: () => void
+  /** Rendirse de la fase actual y descontar lo que falte (solo examen). */
+  giveUp: () => void
   select: (id: string | null) => void
-  beginDrag: (id: string, x: number, z: number) => void
-  updateDrag: (x: number, z: number) => void
+  beginDrag: (id: string, a: number, b: number) => void
+  updateDrag: (a: number, b: number) => void
   cancelDrag: () => void
   endDrag: () => void
   placeInto: (mountId: string) => boolean
   clearWrongFlash: () => void
 }
 
-function distanceXZ(a: [number, number], b: [number, number]): number {
-  return Math.hypot(a[0] - b[0], a[1] - b[1])
+/**
+ * Coordenadas del plano de arrastre: en la fase de conectores la chapa está
+ * de frente (se juega en el plano YZ) y en el resto sobre el banco (XZ).
+ */
+function coordsOnPlan(stage: Stage, p: Vec3): [number, number] {
+  return stage.drop.kind === 'vertical' ? [p[1], p[2]] : [p[0], p[2]]
+}
+
+function planDistance(stage: Stage, mount: MountPoint, a: number, b: number): number {
+  const [ma, mb] = coordsOnPlan(stage, mount.position)
+  return Math.hypot(a - ma, b - mb)
 }
 
 /** Huecos de la fase actual. */
@@ -48,11 +63,28 @@ function mountsOf(stageIndex: number) {
   return MOUNTS_BY_STAGE[STAGES[stageIndex].id]
 }
 
-/** ¿Está completa la fase? Devuelve el índice de la siguiente (o -1). */
+/**
+ * ¿Está completa la fase? Se cuentan las piezas colocadas **en esta fase**
+ * (no las de fases anteriores: la misma pieza puede colocarse en varias).
+ */
 function stageProgress(placed: Record<string, string>, stageIndex: number) {
-  const mounts = mountsOf(stageIndex)
-  const done = mounts.filter((m) => placed[m.id]).length
-  return { done, total: mounts.length, complete: done === mounts.length }
+  const ids = new Set(mountsOf(stageIndex).map((m) => m.id))
+  const filled = Object.keys(placed).filter((mountId) => ids.has(mountId)).length
+  const total = STAGE_STEPS[STAGES[stageIndex].id]
+  return { done: Math.min(filled, total), total, complete: filled >= total }
+}
+
+/** Piezas (ids) ya colocadas en la fase indicada. */
+export function placedInStage(
+  placed: Record<string, string>,
+  stageIndex: number,
+): Set<string> {
+  const ids = new Set(mountsOf(stageIndex).map((m) => m.id))
+  return new Set(
+    Object.entries(placed)
+      .filter(([mountId]) => ids.has(mountId))
+      .map(([, componentId]) => componentId),
+  )
 }
 
 /**
@@ -64,10 +96,7 @@ function advanceAfterPlace(placed: Record<string, string>, stageIndex: number) {
   if (!complete) return {}
   const isLast = stageIndex >= STAGES.length - 1
   if (isLast) {
-    if (Object.keys(placed).length >= COMPONENTS.length) {
-      return { phase: 'finished' as Phase, finishedAt: Date.now() }
-    }
-    return {}
+    return { phase: 'finished' as Phase, finishedAt: Date.now() }
   }
   return {
     stageIndex: stageIndex + 1,
@@ -89,13 +118,15 @@ export const useGameStore = create<State>((set, get) => ({
   placed: {},
   errors: 0,
   attempts: 0,
+  forfeited: 0,
   wrongFlash: null,
   stageChangedAt: 0,
   lastCompletedStage: null,
   startedAt: 0,
   finishedAt: null,
 
-  start: (mode) =>
+  start: (mode) => {
+    shuffleLayout()
     set({
       mode,
       phase: 'building',
@@ -106,14 +137,17 @@ export const useGameStore = create<State>((set, get) => ({
       placed: {},
       errors: 0,
       attempts: 0,
+      forfeited: 0,
       wrongFlash: null,
       stageChangedAt: 0,
       lastCompletedStage: null,
       startedAt: Date.now(),
       finishedAt: null,
-    }),
+    })
+  },
 
-  reset: () =>
+  reset: () => {
+    shuffleLayout()
     set((s) => ({
       phase: 'building',
       stageIndex: 0,
@@ -123,39 +157,89 @@ export const useGameStore = create<State>((set, get) => ({
       placed: {},
       errors: 0,
       attempts: 0,
+      forfeited: 0,
       wrongFlash: null,
       stageChangedAt: 0,
       lastCompletedStage: null,
       startedAt: Date.now(),
       finishedAt: null,
       mode: s.mode,
-    })),
+    }))
+  },
 
   backToMenu: () =>
     set({ phase: 'menu', stageIndex: 0, selectedId: null, dragging: false }),
 
+  skipStage: () => {
+    const { mode, phase, finishedAt } = get()
+    // Guardia silenciosa, espejo de la de giveUp: «solo práctica» (decisión 40)
+    // se cumple en el estado, no solo en el botón que la interfaz oculta.
+    if (mode !== 'practice' || phase !== 'building' || finishedAt !== null) return
+    const { stageIndex } = get()
+    if (stageIndex >= STAGES.length - 1) return
+    set({
+      stageIndex: stageIndex + 1,
+      selectedId: null,
+      dragging: false,
+      hoverMountId: null,
+      wrongFlash: null,
+      stageChangedAt: Date.now(),
+      lastCompletedStage: STAGES[stageIndex].id,
+    })
+  },
+
+  giveUp: () => {
+    const { mode, phase, finishedAt, stageChangedAt } = get()
+    // El cartel de fase es pointer-events: none y la barra superior sigue
+    // montada, así que el segundo clic de un doble clic llega otra vez a
+    // «Rendirse» y rendiría dos fases (en la última, descontaría dos veces
+    // lo mismo). Guardia silenciosa: sin confirmación visible.
+    if (mode !== 'exam' || phase !== 'building' || finishedAt !== null) return
+    if (Date.now() - stageChangedAt < 500) return
+    const { placed, stageIndex, forfeited } = get()
+    const stage = STAGES[stageIndex]
+    const filled = placedInStage(placed, stageIndex).size
+    const remaining = Math.max(0, STAGE_STEPS[stage.id] - filled)
+    const isLast = stageIndex >= STAGES.length - 1
+    set({
+      forfeited: forfeited + remaining,
+      selectedId: null,
+      dragging: false,
+      hoverMountId: null,
+      wrongFlash: null,
+      ...(isLast
+        ? { phase: 'finished' as Phase, finishedAt: Date.now() }
+        : {
+            stageIndex: stageIndex + 1,
+            stageChangedAt: Date.now(),
+            lastCompletedStage: stage.id,
+          }),
+    })
+  },
+
   select: (id) => set({ selectedId: id }),
 
-  beginDrag: (id, x, z) =>
-    set({ selectedId: id, dragging: true, dragPos: [x, z], hoverMountId: null }),
+  beginDrag: (id, a, b) =>
+    set({ selectedId: id, dragging: true, dragPos: [a, b], hoverMountId: null }),
 
-  updateDrag: (x, z) => {
+  updateDrag: (a, b) => {
     const { selectedId, placed, stageIndex } = get()
     if (!selectedId) return
     const def = COMPONENT_BY_ID[selectedId]
     if (!def) return
+    const stage = STAGES[stageIndex]
     let hover: string | null = null
     let best = Infinity
     for (const mount of mountsOf(stageIndex)) {
       if (placed[mount.id]) continue
       if (!mount.accepts.includes(def.kind)) continue
-      const d = distanceXZ([x, z], [mount.position[0], mount.position[2]])
+      const d = planDistance(stage, mount, a, b)
       if (d <= mount.snapRadius && d < best) {
         best = d
         hover = mount.id
       }
     }
-    set({ dragPos: [x, z], hoverMountId: hover })
+    set({ dragPos: [a, b], hoverMountId: hover })
   },
 
   cancelDrag: () => set({ dragging: false, hoverMountId: null, wrongFlash: null }),
@@ -165,13 +249,11 @@ export const useGameStore = create<State>((set, get) => ({
     if (!selectedId) return
     const def = COMPONENT_BY_ID[selectedId]
     if (!def) return
+    const stage = STAGES[stageIndex]
 
     const candidates = mountsOf(stageIndex)
       .filter((m) => !placed[m.id] && m.accepts.includes(def.kind))
-      .map((m) => ({
-        mount: m,
-        d: distanceXZ(dragPos, [m.position[0], m.position[2]]),
-      }))
+      .map((m) => ({ mount: m, d: planDistance(stage, m, dragPos[0], dragPos[1]) }))
       .filter((c) => c.d <= c.mount.snapRadius)
       .sort((a, b) => a.d - b.d)
 
@@ -192,8 +274,8 @@ export const useGameStore = create<State>((set, get) => ({
 
     const wrong = mountsOf(stageIndex)
       .filter((m) => !placed[m.id] && !m.accepts.includes(def.kind))
-      .map((m) => ({ mount: m, d: distanceXZ(dragPos, [m.position[0], m.position[2]]) }))
-      .filter((c) => c.d <= WRONG_DROP_RADIUS)
+      .map((m) => ({ mount: m, d: planDistance(stage, m, dragPos[0], dragPos[1]) }))
+      .filter((c) => c.d <= stage.drop.wrongRadius)
       .sort((a, b) => a.d - b.d)
 
     set({
@@ -237,4 +319,19 @@ export function useCurrentStage(): Stage {
 
 export function currentStageProgress(placed: Record<string, string>, stageIndex: number) {
   return stageProgress(placed, stageIndex)
+}
+
+/** Valor en puntos de una colocación (y de un fallo) en el examen. */
+export const EXAM_POINT_VALUE = 100 / TOTAL_STEPS
+
+/** Nota del examen: 100 − valor × (fallos + piezas rendidas), con suelo en 0. */
+export function examScore(errors: number, forfeited: number): number {
+  return Math.max(0, Math.round(100 - EXAM_POINT_VALUE * (errors + forfeited)))
+}
+
+/** Color de la nota: rojo < 50, amarillo 50–<70, verde ≥ 70. */
+export function scoreColor(score: number): string {
+  if (score < 50) return '#f87171'
+  if (score < 70) return '#facc15'
+  return '#34d399'
 }

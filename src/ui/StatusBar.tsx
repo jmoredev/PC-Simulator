@@ -2,7 +2,7 @@ import { COMPONENT_BY_ID, MOUNTS_BY_STAGE } from '../data/components'
 import { STAGES } from '../data/stages'
 import { useGameStore } from '../store/useGameStore'
 
-export function StatusBar() {
+export function StatusBar({ raised = false }: { raised?: boolean }) {
   const mode = useGameStore((s) => s.mode)
   const phase = useGameStore((s) => s.phase)
   const selectedId = useGameStore((s) => s.selectedId)
@@ -34,7 +34,9 @@ export function StatusBar() {
           .filter((m) => m.accepts.includes(def.kind))
           .map((m) => m.label)
           .join(' o ')
-        text = `${def.name}: colócala en «${targets}». Arrástrala o haz clic en la zona iluminada.`
+        text = targets
+          ? `${def.name}: colócala en «${targets}». Arrástrala o haz clic en la zona iluminada.`
+          : `${def.name}: esta pieza no encaja en ningún sitio. Déjala en la bandeja.`
       } else {
         text = `${def.name} seleccionado. Arrástralo hasta su sitio.`
       }
@@ -45,7 +47,7 @@ export function StatusBar() {
   }
 
   return (
-    <div className="statusbar">
+    <div className={`statusbar${raised ? ' statusbar--raised' : ''}`}>
       <span className="status-dot" />
       <span className={tone}>{text}</span>
     </div>

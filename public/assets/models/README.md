@@ -6,42 +6,63 @@ procedural), así que puedes ir añadiéndolos poco a poco.
 ## Cómo activarlos
 
 1. Deja los archivos en esta carpeta (`public/assets/models/`).
-2. Crea un archivo `.env` en la raíz del proyecto con:
-
-   ```
-   VITE_USE_MODELS=true
-   ```
-
-3. Reinicia `npm run dev`.
+2. Listo: **se usan automáticamente**. Si quieres desactivarlos (para ir más
+   rápido mientras desarrollas), crea un `.env` con `VITE_USE_MODELS=false`.
+3. Reinicia `npm run dev` si has cambiado el `.env`.
 
 Si un archivo no existe o falla, ese componente concreto muestra su placeholder
 y el resto sigue funcionando: **no hay que tocar código**.
+
+## Optimización (hazlo siempre antes de subir modelos)
+
+Los `.glb` originales suelen venir con texturas de 4096 px y geometría muy
+densa. Sin comprimir, el montaje entero pasaba de **225 MB**; optimizado se
+queda en **~13 MB**, que sí se descarga en un aula.
+
+```bash
+npm run models:optimize                              # optimiza in situ
+npm run models:optimize -- --backup models-originales # guarda copia de los originales
+```
+
+- Aplica texturas WebP a 1024 px, cuantización de geometría y simplificación.
+- No necesitas buscar modelos "ligeros": **sube el que tengas y el script lo
+  deja listo**. Cualquier escala y cualquier tamaño de textura vale.
+- Los archivos ya optimizados se detectan y se saltan.
+- El único límite real es que un `.glb` de más de 100 MB no se puede subir a
+  GitHub; pásale el script antes de commitear.
 
 ## Nombres EXACTOS de los archivos
 
 El nombre debe coincidir con el `id` del componente. Formato recomendado: `.glb`
 (glTF binario, con las texturas incrustadas).
 
+Algunas piezas tienen **varias variantes** del mismo tipo (se sortea una por
+partida): CPU, GPU y RAM. Se nombran `<id>-01`, `<id>-02`…
+
 | Archivo            | Componente                 | Forma / notas                                                        |
 | ------------------ | -------------------------- | -------------------------------------------------------------------- |
-| `cpu.glb`          | CPU (procesador)           | Chip cuadrado con la tapa metálica (IHS). Base apoyada en el suelo.  |
+| `cpu-01.glb`, `cpu-02.glb` | CPU (procesador)   | Chip cuadrado con la tapa metálica (IHS). Dos variantes.             |
 | `cooler.glb`       | Disipador + ventilador     | Bloque de aletas con ventilador lateral.                             |
-| `ram1.glb`         | Memoria RAM (módulo 1)     | Módulo rectangular y alargado con disipador.                         |
-| `ram2.glb`         | Memoria RAM (módulo 2)     | Puede ser una copia de `ram1.glb`.                                   |
-| `ssd.glb`          | SSD M.2                    | Placa alargada y fina, con chips y conector dorado en un extremo.    |
-| `gpu.glb`          | Tarjeta gráfica            | Tarjeta alargada con 2 ventiladores y lengüetas PCIe doradas.        |
-| `motherboard.glb`  | Placa base                 | **Solo la placa**, sin componentes. Se usa como base en la fase 1 y,  |
-|                    |                            | con lo montado encima, como pieza de la fase 2.                      |
-| `psu.glb`          | Fuente de alimentación     | Caja metálica rectangular con ventilador y rejilla.                  |
-| `fan1.glb`         | Ventilador de caja         | Ventilador de 120 mm.                                                |
-| `fan2.glb`         | Ventilador de caja         | Puede ser una copia de `fan1.glb`.                                   |
+| `ram1.glb`, `ram2.glb` | Memoria RAM            | Módulo alargado con disipador. Dos variantes (Corsair / Crucial).    |
+| `ssd-nvme.glb`     | SSD M.2 NVMe               | Placa alargada y fina, con chips y conector dorado en un extremo.    |
+| `gpu-01.glb`, `gpu-02.glb` | Tarjeta gráfica    | Tarjeta alargada con ventiladores y lengüetas PCIe doradas. Variantes. |
 | `monitor.glb`      | Monitor                    | Pantalla con peana. Mírala de frente hacia +Z. Tamaño real (~53 cm). |
 | `keyboard.glb`     | Teclado                    | Teclado plano apoyado en el suelo (~44 cm de ancho).                 |
 | `mouse.glb`        | Ratón                      | Ratón pequeño (~12 cm).                                              |
 | `speakers.glb`     | Altavoces                  | **Par** de altavoces (uno a cada lado).                              |
+| `fan.glb`, `hdd.glb`, `psu.glb` | (sin fase asignada) | Descargados y optimizados, pero todavía no se usan en ninguna fase. |
 
 > Los periféricos son grandes de verdad (un monitor es más ancho que la placa
 > base). Es correcto: así se ve la diferencia de escala al montarlos en la fase 3.
+
+> Los **cables de la fase 2** (HDMI, USB, red, jacks…) no son modelos 3D: se
+> dibujan con imágenes PNG en `src/assets/connectors/` (ver su README).
+
+## Placas base
+
+Las placas base no van aquí: cada una es un `.glb` **sin comprimir** en
+`models-originales/placas/<id>.glb` (carpeta ignorada por git). Se eligen con
+`?board=<id>` y se registran en `src/data/boards.ts`. Ver el README principal.
 
 ## Especificaciones recomendadas
 

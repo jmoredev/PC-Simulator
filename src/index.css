@@ -45,6 +45,9 @@ button {
 .canvas-host {
   position: absolute;
   inset: 0;
+  /* Crea un contexto de apilado propio: así las etiquetas HTML de la escena
+     (Html de drei, con z-index enorme) no se montan encima de la interfaz. */
+  z-index: 0;
 }
 
 /* ---------- barra superior ---------- */
@@ -192,6 +195,209 @@ button {
 
 .comp-group--dim {
   opacity: 0.5;
+}
+
+/* ---------- modo calibración ---------- */
+.debug-label {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #cbd5e1;
+  font-size: 10.5px;
+  font-family: ui-monospace, monospace;
+  white-space: nowrap;
+}
+
+.debug-label--marker {
+  background: rgba(120, 53, 15, 0.92);
+  border-color: #f59e0b;
+  color: #fde68a;
+}
+
+.calib {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  z-index: 30;
+  overflow-y: auto;
+}
+
+.calib__head h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.calib__head p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.calib__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.calib__field input {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--text);
+  font: inherit;
+}
+
+.calib__slots {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.calib__slot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.5);
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.calib__slot--armed {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.calib__slot--done {
+  border-color: rgba(52, 211, 153, 0.45);
+}
+
+.calib__slot-value {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  flex: none;
+}
+
+.calib__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.calib__actions .btn {
+  flex: 1;
+  padding: 8px 6px;
+  font-size: 12px;
+}
+
+.calib__status {
+  font-size: 12px;
+  color: var(--accent-2);
+}
+
+.calib__json {
+  margin: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(2, 6, 12, 0.7);
+  border: 1px solid var(--border);
+  color: #93c5fd;
+  font-size: 10.5px;
+  line-height: 1.45;
+  overflow-x: auto;
+  max-height: 240px;
+}
+
+/* ---------- calibración: puertos traseros ---------- */
+.calib__ports {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.calib__ports-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.calib__ports-count {
+  font-family: ui-monospace, monospace;
+  color: var(--accent);
+}
+
+.calib__ports-add {
+  display: flex;
+  gap: 6px;
+}
+
+.calib__ports-add select {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.calib__ports-add .calib__slot {
+  flex: none;
+  white-space: nowrap;
+}
+
+.calib__ports-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.calib__ports-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.4);
+  font-size: 12px;
+}
+
+.calib__ports-list span {
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--muted);
 }
 
 .spacer {
@@ -435,6 +641,91 @@ button {
   max-width: min(760px, 70vw);
 }
 
+.statusbar--raised {
+  bottom: 96px;
+}
+
+/* ---------- barra de cables (fase de conectores) ---------- */
+.connbar {
+  position: absolute;
+  left: 16px;
+  right: 76px;
+  bottom: 16px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  z-index: 11;
+}
+
+.connbar__items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  width: 100%;
+}
+
+.connbar__items::-webkit-scrollbar {
+  height: 6px;
+}
+
+.connbar__items::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+}
+
+.connbar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 92px;
+  flex: none;
+  padding: 5px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.5);
+  cursor: grab;
+  text-align: center;
+}
+
+.connbar__item:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.14);
+}
+
+.connbar__item--active {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.connbar__item img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.connbar__item span {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+.connbar__dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
 .status-dot {
   width: 9px;
   height: 9px;
@@ -599,11 +890,81 @@ button {
   margin-top: 4px;
 }
 
+.finish-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 20px 0;
+  padding: 30px 20px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border);
+}
+
+.finish-score__num {
+  font-size: 88px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.finish-score__lbl {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 10px;
+}
+
 .overlay-actions {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
   margin-top: 10px;
+}
+
+/* ---------- créditos ---------- */
+.credits {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.credits li {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.4);
+}
+
+.credits__what {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.credits__meta {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.credits__meta code {
+  font-size: 11px;
+  color: #93c5fd;
+}
+
+.credits__meta a {
+  color: var(--accent);
+}
+
+.credits__changes {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-style: italic;
 }
 
 /* ---------- etiquetas 3D ---------- */
@@ -625,6 +986,31 @@ button {
   color: #dcfce7;
 }
 
+/* ---------- carteles de la fase de identificación ---------- */
+.identify-tag {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.identify-tag--done {
+  background: rgba(22, 101, 52, 0.95);
+  border-color: #4ade80;
+  color: #dcfce7;
+}
+
+/* Punto invisible en el centro de cada zona (lo usan las pruebas e2e). */
+.mount-center {
+  width: 2px;
+  height: 2px;
+  opacity: 0;
+}
+
 .tray-label {
   padding: 5px 12px;
   border-radius: 8px;
@@ -641,6 +1027,79 @@ button {
   color: var(--warning);
 }
 
+/* ---------- leyenda de controles ---------- */
+.help {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  z-index: 12;
+}
+
+.help__toggle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  color: var(--accent);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.help__toggle:hover {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.help__card {
+  width: 292px;
+  padding: 14px 16px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.help__card h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+}
+
+.help__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.help__list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.help__list b {
+  font-size: 12.5px;
+}
+
+.help__list span {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 @media (max-width: 1100px) {
   .panel {
     width: 250px;
@@ -654,4 +1113,194 @@ button {
   .panel--right {
     display: none;
   }
+}
+
+/* ---------- calibración: pestañas ---------- */
+.calib__tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.calib__tab {
+  flex: 1;
+  padding: 8px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.7);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.calib__tab--active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.14);
+}
+
+/* ---------- calibración: pestaña «Rotaciones» ---------- */
+.rot-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rot-calc__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.rot-calc__hint code {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.rot-calc__targets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rot-calc__target {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.7);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rot-calc__target--active {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.rot-calc__target-value {
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+  flex: none;
+}
+
+.rot-calc__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.rot-calc__axis {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rot-calc__axis-name {
+  width: 16px;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.rot-calc__axis-value {
+  width: 58px;
+  font-family: ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: right;
+  flex: none;
+}
+
+.rot-calc__axis-btns {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.rot-calc__axis-btns button {
+  flex: 1;
+  padding: 5px 0;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--text);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.rot-calc__axis-btns button:hover {
+  border-color: var(--accent);
+}
+
+.rot-calc__readout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.rot-calc__readout code {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--accent-2);
+}
+
+.rot-calc__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.rot-calc__actions .btn {
+  flex: 1;
+  padding: 8px 6px;
+  font-size: 12px;
+}
+
+.rot-calc__fallback {
+  width: 100%;
+  padding: 6px 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--accent-2);
+  background: rgba(8, 15, 25, 0.6);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 6px;
+  white-space: pre;
+  resize: vertical;
+}
+
+/* ---------- etiquetas del gizmo de ejes ---------- */
+.axis-label {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.85);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.axis-label--x {
+  color: #ef4444;
+}
+
+.axis-label--y {
+  color: #22c55e;
+}
+
+.axis-label--z {
+  color: #3b82f6;
 }

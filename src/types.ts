@@ -1,27 +1,48 @@
 export type Vec3 = [number, number, number]
 
+/** Variante de modelo de una pieza (p. ej. dos CPUs distintas). */
+export interface ModelVariant {
+  model: string
+  /** Giro [x, y, z] propio de esta variante. */
+  rotation?: Vec3
+}
+
 export type ComponentKind =
-  | 'motherboard'
   | 'cpu'
   | 'cooler'
   | 'ram'
-  | 'ssd'
+  | 'ssd-nvme'
   | 'gpu'
-  | 'psu'
-  | 'fan'
   | 'monitor'
   | 'keyboard'
   | 'mouse'
   | 'speaker'
+  | 'ps2'
+  | 'usb'
+  | 'lan'
+  | 'hdmi'
+  | 'displayport'
+  | 'dvi'
+  | 'vga'
+  | 'audio-out'
+  | 'audio-in'
+  | 'audio-mic'
+  | 'usb-c'
+  | 'rj11'
 
-export type ComponentCategory = 'interno' | 'periferico'
+export type ComponentCategory = 'interno' | 'periferico' | 'conector'
 
 export type GameMode = 'practice' | 'exam'
 
 export type Phase = 'menu' | 'building' | 'finished'
 
-/** Fases del montaje: sobre la placa, dentro de la caja y periféricos. */
-export type StageId = 'board' | 'case' | 'peripherals'
+/** Fases: identificación, montaje en la placa, conexiones traseras y periféricos. */
+export type StageId = 'identify' | 'board' | 'ports' | 'peripherals'
+
+/** Plano sobre el que se proyecta el puntero y ejes de colocación. */
+export type DropPlane =
+  | { kind: 'horizontal'; y: number; wrongRadius: number }
+  | { kind: 'vertical'; x: number; wrongRadius: number }
 
 export interface Stage {
   id: StageId
@@ -38,6 +59,8 @@ export interface Stage {
   tray: { cols: number[]; rows: number[]; surfaceY: number }
   /** Cámara inicial de la fase. */
   camera: { position: Vec3; target: Vec3 }
+  /** Plano de arrastre (horizontal salvo en la fase de conectores). */
+  drop: DropPlane
 }
 
 /** Punto físico donde se instala un componente. */
@@ -55,6 +78,8 @@ export interface MountPoint {
   snapRadius: number
   /** Forma de la zona resaltable (ancho y profundo, en unidades). */
   size: [number, number]
+  /** Ángulo de la ranura en el plano XZ (radianes). */
+  angle?: number
   /** Orden recomendado de montaje. */
   order: number
   /** Nivel de dificultad del montaje. */
@@ -74,16 +99,26 @@ export interface ComponentDef {
   /** Dato curioso o utilidad práctica. */
   funFact?: string
   order: number
-  /** Hueco donde debe colocarse. */
-  mountId: string
+  /** Hueco donde debe colocarse (los cables señuelo no tienen). */
+  mountId?: string
   /** Tamaño máximo (unidades) para normalizar el modelo 3D. */
   size: number
   /** [x, z] dentro de la bandeja de componentes. */
   trayPos: [number, number]
+  /** [x, z] en la mesa de la fase de identificación. */
+  identifyPos?: [number, number]
   /** Color de acento en la interfaz y en el placeholder. */
   color: string
+  /** Pieza que sobra: no encaja en ningún hueco y no cuenta para acabar. */
+  decoy?: boolean
   /** Ruta explícita del modelo .glb (opcional). */
   model?: string
+  /** Varios modelos para la misma pieza: se elige uno al azar por partida. */
+  variants?: ModelVariant[]
+  /** Sin modelo .glb: se dibuja siempre con la geometría procedural. */
+  procedural?: boolean
+  /** Giro del modelo en radianes [x, y, z] para orientarlo en el hueco. */
+  rotation?: Vec3
   /** Ruta explícita de la textura (opcional). */
   texture?: string
 }
