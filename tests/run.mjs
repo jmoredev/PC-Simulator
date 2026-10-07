@@ -4,14 +4,17 @@
  *   npm run dev -- --port 5199        # en otra terminal
  *   node tests/run.mjs
  *
- * Variables: BASE_URL (por defecto http://127.0.0.1:5199), CHROME (ruta al binario).
+ * Variables: BASE_URL (por defecto http://localhost:5199), CHROME (ruta al binario).
+ * Se usa `localhost` y no `127.0.0.1` porque Vite 8 puede escuchar solo en IPv6
+ * (`[::1]`); si la instancia de desarrollo escucha solo en IPv4, pásale
+ * BASE_URL=http://127.0.0.1:5199.
  */
 import { readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import puppeteer from 'puppeteer-core'
 
-const BASE_URL = process.env.BASE_URL ?? 'http://127.0.0.1:5199'
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5199'
 /** Piezas totales de la lista con la placa por defecto (las 4 fases). */
 const IDENTIFY = 18
 const ITEMS = 36

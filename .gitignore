@@ -21,6 +21,9 @@ coverage
 # Scratch local (scripts y capturas de depuración)
 .scratch
 
+# Cuaderno de trabajo de las features (tareas y evidencia, no es código)
+odd
+
 # Modelos 3D originales sin optimizar (los .glb pesados). No se suben.
 models-originales
 
