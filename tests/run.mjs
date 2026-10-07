@@ -155,14 +155,15 @@ const browser = await puppeteer.launch({
   const cx = Math.round(canvasBox.x + canvasBox.width / 2)
   const cy = Math.round(canvasBox.y + canvasBox.height / 2)
   let after = null
+  let nAfter = null
   for (const [dx, dy] of [[0, 0], [0, -20], [0, 20], [-20, 0], [20, 0], [-20, -20], [20, 20]]) {
     await page.mouse.click(cx + dx, cy + dy)
     await wait(400)
     after = await readState()
-    if (readPoints(after) !== null && readPoints(after) > (nBefore ?? -1)) break
+    nAfter = readPoints(after)
+    if (nAfter !== null && (nBefore === null || nAfter > nBefore)) break
     after = null
   }
-  const nAfter = readPoints(after)
   check(
     'calibración: registra un punto',
     nBefore !== null && nAfter !== null && nAfter === nBefore + 1,

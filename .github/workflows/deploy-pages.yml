@@ -38,7 +38,8 @@ jobs:
       - name: Comprobar que la base de Pages llega a la build
         run: |
           test -n "${BASE_PATH}" || { echo "::error::Falta BASE_PATH en el workflow."; exit 1; }
-          grep -Fq "=\"${BASE_PATH}assets/" dist/index.html || {
+          base="${BASE_PATH%/}/"
+          grep -Fq "=\"${base}assets/" dist/index.html || {
             echo "::error::La build no lleva la base ${BASE_PATH}: revisa BASE_PATH."
             exit 1
           }
