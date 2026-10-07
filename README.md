@@ -1,4 +1,4 @@
-# Simulador de montaje de PC (Tecnología · 4º ESO)
+# Simulador de montaje de PC
 
 Simulador 3D interactivo donde el alumnado monta un ordenador pieza a pieza
 arrastrando los componentes hasta su sitio, con dos modos de juego y una ficha
@@ -37,7 +37,7 @@ La versión online para el aula se publica desde la rama `main` en
 - **Modo examen**: sin pistas, cuenta fallos y da una nota sobre 100, con tiempo
   y precisión.
 - **Ficha didáctica** de cada componente (qué es, para qué sirve y un dato
-  curioso), adaptada a 4º de la ESO.
+  curioso), en lenguaje divulgativo.
 - **Funciona sin assets**: si no hay modelos `.glb`, se usan formas 3D
   procedurales. Solo hay que soltar los modelos y activarlos.
 - Al completar una fase, la cámara se desplaza sola a la siguiente y aparece un

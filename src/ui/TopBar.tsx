@@ -34,7 +34,7 @@ export function TopBar() {
     <div className="topbar">
       <div className="brand">
         <b>Montaje de PC</b>
-        <span>Tecnología · 4º ESO</span>
+        <span>Simulador interactivo 3D</span>
       </div>
       <span className={`badge badge--${mode === 'exam' ? 'exam' : 'practice'}`}>
         {mode === 'exam' ? 'Modo examen' : 'Modo práctica'}

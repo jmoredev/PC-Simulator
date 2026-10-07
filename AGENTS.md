@@ -8,15 +8,16 @@ se cambie la estructura de carpetas o se modifique el flujo de trabajo.
 
 ## 1. Qué es este proyecto
 
-Simulador 3D interactivo de **montaje de PC** para la asignatura de Tecnología
-de **4º de la ESO**. El alumnado monta un ordenador arrastrando componentes
+Simulador 3D interactivo de **montaje de PC** para cualquier curso y materia. El
+alumnado monta un ordenador arrastrando componentes
 hasta su sitio, en **4 fases** (identificación → placa base → conectores
 traseros → periféricos), con dos modos de juego (práctica y examen) y una ficha
 didáctica por componente.
 
 - No hay backend ni cuentas de usuario: todo ocurre en el navegador.
 - Objetivo: funcionar en portátiles y Chromebooks modestos del aula.
-- Todo el texto didáctico está en español y con nivel de 4º ESO.
+- Todo el texto didáctico está en español y con lenguaje divulgativo: sin dar
+  por sabido nada técnico.
 
 ## 2. Stack y comandos
 
@@ -145,7 +146,7 @@ Reglas de layout:
 | 9 | **Auto-fit de los modelos** (`Box3` → centrar y escalar a `def.size`) | Cualquier `.glb` vale sea cual sea su escala y su origen, sin ajustes manuales. |
 | 10 | **Fallback silencioso con `ErrorBoundary` + `Suspense`** | Si un `.glb` falta o falla, esa pieza usa su placeholder y la app no se rompe. |
 | 11 | **Dos entradas: arrastrar-y-soltar y clic-y-clic** | El ratón/trackpad del aula no siempre permite arrastrar cómodo; el clic sobre la zona iluminada es más accesible. |
-| 12 | **No se pierde la pieza al fallar** | Para la ESO es más tolerable: si sueltas mal, sigues con la pieza seleccionada y puedes reintentar. `Esc` cancela. |
+| 12 | **No se pierde la pieza al fallar** | En el aula es más tolerable: si sueltas mal, sigues con la pieza seleccionada y puedes reintentar. `Esc` cancela. |
 | 13 | **Avance automático de fase + aviso central** | Menos fricción: al completar una fase la cámara se mueve sola y aparece un cartel con lo siguiente. |
 | 14 | **El examen no muestra zonas ni etiquetas** | Sin pistas de verdad; solo hay feedback al acertar o fallar. La puntuación proporcional está en la decisión 43. |
 | 15 | **Un solo sentido de montaje por pieza**, sin validar el orden | Se puede montar en cualquier orden; las pistas de la fase en práctica indican qué toca. |

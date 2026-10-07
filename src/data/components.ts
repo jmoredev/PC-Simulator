@@ -220,7 +220,7 @@ const BASE_MOUNTS: MountPoint[] = [
 
 
 /* ------------------------------------------------------------------ *
- *  CATÁLOGO DE COMPONENTES (textos adaptados a 4º ESO)
+ *  CATÁLOGO DE COMPONENTES (textos en lenguaje divulgativo)
  * ------------------------------------------------------------------ */
 
 type RawComponent = Omit<ComponentDef, 'trayPos'>
