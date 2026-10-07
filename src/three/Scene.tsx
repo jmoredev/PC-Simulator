@@ -47,6 +47,13 @@ function dropPlaneFor(stage: Stage): THREE.Plane {
 /** ¿La fase se juega sobre un plano vertical (chapa trasera de frente)? */
 const isVertical = (stage: Stage) => stage.drop.kind === 'vertical'
 
+/**
+ * Cara superior del banco. Por debajo de ella el banco se interpone entre la
+ * cámara y lo que se dibuje detrás, así que el fantasma del arrastre se acota
+ * justo por encima (ver `DragGhost`).
+ */
+const BENCH_TOP = -0.172 + 0.32 / 2
+
 /** Cámara de la pestaña «Rotaciones»: el modelo centrado, a media distancia. */
 const ROTATION_VIEW = {
   position: [2.4, 1.9, 2.9] as [number, number, number],
@@ -313,9 +320,15 @@ function DragGhost({ stage }: { stage: Stage }) {
         ? [mount.position[0] - 0.12, mount.position[1], mount.position[2]]
         : [mount.position[0], mount.position[1] + 0.05, mount.position[2]]
   } else if (stage.drop.kind === 'vertical') {
+    // El plano de la chapa se extiende muy por debajo del banco. Sin acotar, el
+    // fantasma queda detrás del banco y el cable parece invisible mientras se
+    // arrastra por la mitad baja de la pantalla: solo reaparece al llegar a la
+    // altura de los puertos. Acotado, se ve apoyado en el banco y sigue subiendo
+    // con el puntero, sin saltos.
+    const y = Math.max(dragPos[0], BENCH_TOP + 0.06)
     position = usePlug
-      ? [stage.drop.x, dragPos[0], dragPos[1]]
-      : [stage.drop.x - 0.12, dragPos[0], dragPos[1]]
+      ? [stage.drop.x, y, dragPos[1]]
+      : [stage.drop.x - 0.12, y, dragPos[1]]
   } else {
     position = [dragPos[0], stage.drop.y + 0.08, dragPos[1]]
   }
