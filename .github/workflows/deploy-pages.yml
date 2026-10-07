@@ -7,6 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  # Única fuente de la base del sitio de proyecto: la usa la build (Vite) y
+  # también la comprobación de abajo; si hay que tocarla, se toca solo aquí.
+  BASE_PATH: /PC-Simulator/
+
 permissions:
   contents: read
 # Serializa los runs del mismo ref (los push a `main`), no los de los PR:
@@ -19,23 +24,28 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       # Un pull request solo compila: publicar lo hace únicamente `main`.
       - run: npm run build
-        env:
-          BASE_PATH: /PC-Simulator/
-      # Si alguien toca la variable, la build se pone en rojo en vez de publicar
-      # una página en blanco con las rutas sin la base.
-      - name: Comprobar que las rutas llevan la base de Pages
-        run: grep -q "/PC-Simulator/assets/" dist/index.html
+      # La base llega a la build o se ve en rojo: el patrón va anclado a `="` y
+      # hay un chequeo explícito de que BASE_PATH no esté vacía, para que una
+      # variable mal escrita no pueda pasar por accidente con `grep /assets/`.
+      - name: Comprobar que la base de Pages llega a la build
+        run: |
+          test -n "${BASE_PATH}" || { echo "::error::Falta BASE_PATH en el workflow."; exit 1; }
+          base="${BASE_PATH%/}/"
+          grep -Fq "=\"${base}assets/" dist/index.html || {
+            echo "::error::La build no lleva la base ${BASE_PATH}: revisa BASE_PATH."
+            exit 1
+          }
       # Sin `actions/configure-pages`: no usamos ninguna de sus salidas y exige
       # que Pages ya esté activado, lo que ponía en rojo la build de los PR.
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -53,4 +63,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
