@@ -970,6 +970,75 @@ async function examNoHelp() {
   await page.close()
 }
 
+/* ---------- 11. La mesa nunca apila dos piezas ---------- */
+async function traySeparation() {
+  // Dos piezas se solapan si su separación en LOS DOS ejes es menor que su
+  // huella. Ninguna pieza dibujada supera 0,75 u en ningún eje (los modelos se
+  // normalizan a `def.size` y luego se escalan para no pasar de 0,75; los cables
+  // procedurales son más pequeños), así que basta con que algún eje separe 0,75.
+  // El desplazamiento aleatorio se deriva de la rejilla para que eso se cumpla
+  // siempre: antes era ±0,4 fijo y dos vecinas podían quedar a 0,1 u.
+  const SPAN = 0.75
+  const RUNS = 200
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const menu = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .catch(() => null)
+  check('mesa: menú de modos visible (sonda de datos)', !!menu)
+  if (!menu) {
+    await page.close()
+    return
+  }
+
+  const result = await page.evaluate(
+    async (runs) => {
+      const { COMPONENTS_BY_STAGE, shuffleLayout } = await import('/src/data/components.ts')
+      const out = {}
+      for (const stage of ['identify', 'board', 'ports', 'peripherals']) {
+        const defs = COMPONENTS_BY_STAGE[stage]
+        const at = (d) => (stage === 'identify' ? d.identifyPos : d.trayPos)
+        let worst = Infinity
+        let bad = 0
+        for (let run = 0; run < runs; run++) {
+          shuffleLayout()
+          for (let i = 0; i < defs.length; i++) {
+            for (let j = i + 1; j < defs.length; j++) {
+              const a = at(defs[i])
+              const b = at(defs[j])
+              const sep = Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]))
+              if (sep < worst) worst = sep
+              if (sep < 0.75) bad++
+            }
+          }
+        }
+        out[stage] = { piezas: defs.length, peor: +worst.toFixed(3), solapados: bad }
+      }
+      return out
+    },
+    RUNS,
+  )
+
+  for (const stage of ['identify', 'board', 'ports', 'peripherals']) {
+    const r = result[stage]
+    check(
+      `mesa: ninguna pieza se solapa en «${stage}» (${RUNS} barajados)`,
+      r.solapados === 0 && r.peor >= SPAN,
+      `${r.piezas} piezas, separación mínima ${r.peor} u (mínimo ${SPAN}) y ${r.solapados} pares por debajo`,
+    )
+  }
+  // La identificación es la fase que se ve entera sobre la mesa y la que se
+  // reportó con las clavijas de audio encima unas de otras: además de no
+  // solaparse, deja aire de verdad entre piezas.
+  check(
+    'mesa: la identificación deja aire entre piezas',
+    result.identify.peor >= 0.9,
+    `separación mínima ${result.identify.peor} u (mínimo 0,9)`,
+  )
+
+  check('mesa: sin errores', errors.length === 0, errors.join(' | '))
+  await page.close()
+}
+
 await fullGame()
 await examGiveUpGuard()
 await skipStageGuard()
@@ -979,6 +1048,7 @@ await unknownBoardNoCalibration()
 await dragGhostVisible()
 await sidePanels()
 await examNoHelp()
+await traySeparation()
 
 await browser.close()
 console.log(failures === 0 ? '\nTODO OK' : `\n${failures} comprobaciones fallidas`)

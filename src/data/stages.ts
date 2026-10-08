@@ -35,7 +35,14 @@ export const STAGES: Stage[] = [
     short: '1. Identificación',
     hint: 'Lleva cada pieza hasta el cartel con su nombre.',
     bench: { width: 12, depth: 11, center: [0, 0.6] },
-    tray: { cols: [-3, -1.8, -0.6, 0.6, 1.8, 3], rows: [0.6, 1.5, 2.4, 3.3], surfaceY: 0.11 },
+    // Rejilla de la mesa: dos piezas contiguas nunca pueden quedar más juntas de
+    // lo que ocupan (0,75). El desplazamiento aleatorio se deriva de estas
+    // separaciones (`trayJitter`), así que ensanchar la rejilla las separa.
+    tray: {
+      cols: [-4, -2.4, -0.8, 0.8, 2.4, 4],
+      rows: [0.6, 1.85, 3.1, 4.35],
+      surfaceY: 0.11,
+    },
     camera: { position: [0, 8.6, 9.2], target: [0, 0, 0.7] },
     drop: { kind: 'horizontal', y: DROP_Y, wrongRadius: 0.6 },
   },
