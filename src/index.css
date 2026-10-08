@@ -488,6 +488,10 @@ button {
 }
 
 .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 14px 16px 10px;
   border-bottom: 1px solid var(--border);
 }
@@ -515,6 +519,42 @@ button {
 .panel-body::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.3);
   border-radius: 999px;
+}
+
+.panel-toggle {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.panel-toggle:hover {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+/* Plegado: el panel queda como una franja fina con el botón de desplegar. */
+.panel.panel--collapsed {
+  width: 46px;
+}
+
+.panel--collapsed .panel-head {
+  padding: 10px 0;
+  border-bottom: none;
+  justify-content: center;
+}
+
+.panel--collapsed .panel-head h2 {
+  display: none;
 }
 
 .comp-item {

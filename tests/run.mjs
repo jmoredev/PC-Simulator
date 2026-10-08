@@ -52,6 +52,19 @@ async function newPage(browser, url, seed) {
 }
 
 /**
+ * Despliega la lista de fases si está plegada. Empieza plegada a propósito, así
+ * que el arnés tiene que abrirla como cualquier persona antes de usar la lista.
+ */
+async function openSidePanel(page) {
+  const collapsed = await page.$('.panel--left.panel--collapsed')
+  if (collapsed) {
+    await page.click('.panel--left .panel-toggle')
+    await wait(300)
+  }
+  await page.waitForSelector('button.comp-item', { timeout: 60000 })
+}
+
+/**
  * Coloca el componente i: lo selecciona en la lista y clica en el centro de su
  * zona iluminada (el punto invisible `.mount-center` que pinta `MountZone`).
  */
@@ -211,6 +224,10 @@ async function fullGame() {
   }
   await menuCard.click()
   await wait(3500)
+
+  // La lista de fases empieza PLEGADA (decisión de producto): el arnés la
+  // despliega como haría cualquier persona antes de usar sus botones.
+  await openSidePanel(page)
 
   const placedCount = () => page.$$eval('.comp-item--placed', (els) => els.length)
 
@@ -793,6 +810,95 @@ async function dragGhostVisible() {
   await page.close()
 }
 
+/* ---------- 9. Paneles laterales plegables ---------- */
+async function sidePanels() {
+  // Por defecto la partida empieza con la lista de fases PLEGADA y la ficha del
+  // componente DESPLEGADA, y el estado no se recuerda entre partidas (decisión
+  // de producto): cada partida vuelve a este mismo punto de partida.
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('paneles: menú de modos visible', menuCards.length >= 1, `${menuCards.length}`)
+  if (menuCards.length < 1) {
+    await page.close()
+    return
+  }
+  await menuCards[0].click() // práctica
+  const topbar = await page.waitForSelector('.topbar', { timeout: 60000 }).catch(() => null)
+  check('paneles: barra superior visible', !!topbar)
+  if (!topbar) {
+    await page.close()
+    return
+  }
+  await wait(500)
+
+  const read = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.panel')].map((el) => ({
+        cls: el.className,
+        ancho: Math.round(el.getBoundingClientRect().width),
+        expanded: el.querySelector('.panel-toggle')?.getAttribute('aria-expanded') ?? null,
+        cuerpo: !!el.querySelector('.panel-body, .info-body, .info-empty'),
+      })),
+    )
+  const find = (list, side) => list.find((p) => p.cls.includes(`panel--${side}`))
+
+  const left = find(await read(), 'left')
+  const right = find(await read(), 'right')
+  check(
+    'paneles: el izquierdo empieza plegado',
+    !!left && left.cls.includes('panel--collapsed') && left.expanded === 'false',
+    JSON.stringify(left),
+  )
+  check('paneles: plegado es una franja fina', !!left && left.ancho <= 60, `${left?.ancho} px`)
+  check(
+    'paneles: el derecho empieza desplegado',
+    !!right && !right.cls.includes('panel--collapsed') && right.expanded === 'true',
+    JSON.stringify(right),
+  )
+  check('paneles: el derecho desplegado muestra contenido', right?.cuerpo === true)
+  check(
+    'paneles: el izquierdo plegado no deja lista en el DOM',
+    left?.cuerpo === false,
+    String(left?.cuerpo),
+  )
+
+  await page.click('.panel--left .panel-toggle')
+  await wait(300)
+  const opened = find(await read(), 'left')
+  check(
+    'paneles: se despliega el izquierdo con su lista',
+    !!opened && !opened.cls.includes('panel--collapsed') && opened.cuerpo === true && opened.ancho > 200,
+    JSON.stringify(opened),
+  )
+
+  await page.click('.panel--right .panel-toggle')
+  await wait(300)
+  const closed = find(await read(), 'right')
+  check(
+    'paneles: se pliega el derecho',
+    !!closed && closed.cls.includes('panel--collapsed') && closed.ancho <= 60,
+    JSON.stringify(closed),
+  )
+
+  await page.click('.panel--left .panel-toggle')
+  await page.click('.panel--right .panel-toggle')
+  await wait(300)
+  const back = await read()
+  const leftBack = find(back, 'left')
+  const rightBack = find(back, 'right')
+  check(
+    'paneles: los dos botones vuelven al estado inicial',
+    leftBack?.cls.includes('panel--collapsed') === true &&
+      rightBack?.cls.includes('panel--collapsed') === false,
+    JSON.stringify([leftBack, rightBack]),
+  )
+  check('paneles: sin errores', errors.length === 0, errors.join(' | '))
+  await page.close()
+}
+
 await fullGame()
 await examGiveUpGuard()
 await skipStageGuard()
@@ -800,6 +906,7 @@ await unknownBoardGuard()
 await rotationsGuard()
 await unknownBoardNoCalibration()
 await dragGhostVisible()
+await sidePanels()
 
 await browser.close()
 console.log(failures === 0 ? '\nTODO OK' : `\n${failures} comprobaciones fallidas`)

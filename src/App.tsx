@@ -21,6 +21,9 @@ export default function App() {
   const wrongFlash = useGameStore((s) => s.wrongFlash)
   const stage = useCurrentStage()
   const [inspectedId, setInspectedId] = useState<string | null>(null)
+  /** Los paneles laterales empiezan con la ficha abierta y la lista plegada. */
+  const [leftOpen, setLeftOpen] = useState(false)
+  const [rightOpen, setRightOpen] = useState(true)
   /** En la fase de conectores los cables salen de una barra inferior. */
   const cableBar = phase === 'building' && stage.id === 'ports'
 
@@ -51,8 +54,18 @@ export default function App() {
           {phase !== 'menu' && (
             <>
               <TopBar />
-              <ComponentList onInspect={setInspectedId} />
-              <InfoPanel inspectedId={inspectedId} selectedId={selectedId} mode={mode} />
+              <ComponentList
+                onInspect={setInspectedId}
+                open={leftOpen}
+                onToggle={() => setLeftOpen((v) => !v)}
+              />
+              <InfoPanel
+                inspectedId={inspectedId}
+                selectedId={selectedId}
+                mode={mode}
+                open={rightOpen}
+                onToggle={() => setRightOpen((v) => !v)}
+              />
               <StatusBar raised={cableBar} />
               {cableBar && <ConnectorBar />}
               <StageBanner />

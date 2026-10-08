@@ -6,10 +6,12 @@ import type { ComponentDef } from '../types'
 
 interface Props {
   onInspect: (id: string | null) => void
+  open: boolean
+  onToggle: () => void
 }
 
 /** Lista de fases: indica qué piezas quedan en cada una. */
-export function ComponentList({ onInspect }: Props) {
+export function ComponentList({ onInspect, open, onToggle }: Props) {
   const placed = useGameStore((s) => s.placed)
   const selectedId = useGameStore((s) => s.selectedId)
   const stageIndex = useGameStore((s) => s.stageIndex)
@@ -47,24 +49,36 @@ export function ComponentList({ onInspect }: Props) {
   )
 
   return (
-    <div className="panel panel--left">
+    <div className={`panel panel--left${open ? '' : ' panel--collapsed'}`}>
       <div className="panel-head">
         <h2>Fases del montaje</h2>
+        <button
+          type="button"
+          className="panel-toggle"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-label={open ? 'Plegar el panel de fases' : 'Desplegar el panel de fases'}
+          title={open ? 'Plegar el panel de fases' : 'Desplegar el panel de fases'}
+        >
+          {open ? '◂' : '▸'}
+        </button>
       </div>
-      <div className="panel-body">
-        {STAGES.map((stage) => (
-          <Fragment key={stage.id}>
-            <div className={stage.id === currentStage ? undefined : 'comp-group--dim'}>
-              {renderGroup(
-                `${stage.index + 1}. ${stage.title}`,
-                COMPONENTS_BY_STAGE[stage.id],
-                stage.id === currentStage,
-                placedInStage(placed, stage.index),
-              )}
-            </div>
-          </Fragment>
-        ))}
-      </div>
+      {open && (
+        <div className="panel-body">
+          {STAGES.map((stage) => (
+            <Fragment key={stage.id}>
+              <div className={stage.id === currentStage ? undefined : 'comp-group--dim'}>
+                {renderGroup(
+                  `${stage.index + 1}. ${stage.title}`,
+                  COMPONENTS_BY_STAGE[stage.id],
+                  stage.id === currentStage,
+                  placedInStage(placed, stage.index),
+                )}
+              </div>
+            </Fragment>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
