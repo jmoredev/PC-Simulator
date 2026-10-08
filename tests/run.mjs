@@ -1039,6 +1039,242 @@ async function traySeparation() {
   await page.close()
 }
 
+/* ---------- 12. En examen se sigue colocando (y fallar cuesta puntos) ---------- */
+async function examDrag() {
+  // El examen se juega arrastrando las piezas de la mesa, porque la lista (donde
+  // se puede pulsar un nombre) ya no existe. Esta sección ejerce ese gesto de
+  // verdad, con el ratón, y comprueba las dos consecuencias visibles: el puerto
+  // correcto coloca el cable sin coste, y soltar en un puerto que no le
+  // corresponde resta puntos.
+  //
+  // El fallo se prueba con el cable señuelo (USB-C), que no encaja en ningún
+  // puerto: así el resultado no depende de lo apretados que estén los puertos en
+  // la chapa (los snapRadius miden entre 0,072 y 0,198 y hay puertos a menos de
+  // un snapRadius unos de otros, así que apuntar un fallo con un cable normal no
+  // es determinista).
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('examen arrastre: menú de modos visible', menuCards.length >= 2, `${menuCards.length}`)
+  if (menuCards.length < 2) {
+    await page.close()
+    return
+  }
+  await menuCards[0].click() // empieza en práctica: hace falta para ver los puertos
+  const topbar = await page.waitForSelector('.topbar', { timeout: 60000 }).catch(() => null)
+  check('examen arrastre: barra superior visible', !!topbar)
+  if (!topbar) {
+    await page.close()
+    return
+  }
+  await wait(500)
+
+  const skip = () =>
+    page.evaluate(() =>
+      import('/src/store/useGameStore.ts').then((m) => m.useGameStore.getState().skipStage()),
+    )
+  const reset = () =>
+    page.evaluate(() =>
+      import('/src/store/useGameStore.ts').then((m) => m.useGameStore.getState().reset()),
+    )
+
+  const names = () => page.$$eval('.connbar__item', (els) => els.map((e) => e.textContent.trim()))
+  const barItem = async (i) => (await page.$$('.connbar__item'))[i]
+  const score = () =>
+    page.$$eval('.topbar .badge', (els) =>
+      els.map((el) => el.textContent ?? '').find((t) => t.startsWith('Puntos:')) ?? '',
+    )
+  const store = () =>
+    page.evaluate(() =>
+      import('/src/store/useGameStore.ts').then((m) => {
+        const s = m.useGameStore.getState()
+        return { errors: s.errors, placed: s.placed, hover: s.hoverMountId }
+      }),
+    )
+  const scoreNumber = (text) => Number(text.replace(/\D/g, ''))
+
+  // Arrastra el cable de la posición i de la barra hasta un punto de la pantalla.
+  const dragTo = async (i, point) => {
+    const item = await barItem(i)
+    if (!item) return { ok: false, why: `no hay cable en la posición ${i}` }
+    const box = await item.boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await wait(250)
+    await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 - 40)
+    await wait(250)
+    await page.mouse.move(point.x, point.y)
+    await wait(400)
+    const hover = (await store()).hover
+    await page.mouse.up()
+    await wait(700)
+    return { ok: true, hover }
+  }
+
+  // El nombre del cable señuelo, tal y como lo llama el catálogo (no se escribe a
+  // mano: si cambia el nombre, la prueba encuentra el nuevo).
+  const decoy = await page.evaluate(() =>
+    import('/src/data/components.ts').then((m) => {
+      const def = m.COMPONENTS_BY_STAGE.ports.find((c) => c.decoy)
+      return def ? { id: def.id, name: def.name, mountId: def.mountId ?? null } : null
+    }),
+  )
+  check(
+    'examen arrastre: el catálogo tiene un cable señuelo sin hueco',
+    !!decoy && decoy.mountId === null,
+    JSON.stringify(decoy),
+  )
+
+  await skip()
+  await wait(1200)
+  await skip()
+  await wait(3500)
+  const stage = await page.$eval('.badge--stage', (el) => el.textContent.trim()).catch(() => '<sin>')
+  check('examen arrastre: en la fase de conectores', stage === '3. Conectores', stage)
+
+  const labels = await names()
+  check(
+    'examen arrastre: la barra de cables tiene al menos dos cables',
+    labels.length >= 2,
+    `${labels.length}`,
+  )
+  check(
+    'examen arrastre: el cable señuelo está en la barra',
+    !!decoy && labels.includes(decoy.name),
+    `${decoy?.name} entre ${labels.length} cables`,
+  )
+  const iDecoy = labels.indexOf(decoy?.name ?? '')
+  const i0 = labels.findIndex((n) => n !== decoy?.name)
+  check(
+    'examen arrastre: hay un cable normal y uno señuelo',
+    iDecoy >= 0 && i0 >= 0 && i0 !== iDecoy,
+    `señuelo en ${iDecoy}, normal en ${i0}`,
+  )
+
+  // Las zonas iluminadas solo existen en práctica y solo para los huecos del
+  // cable seleccionado, así que son la forma exacta de saber dónde cae un puerto
+  // en la pantalla. Se lee aquí y se usa luego en examen: al cambiar de modo no
+  // cambian ni el escenario, ni los puertos, ni la cámara (y si cambiaran, la
+  // colocación de abajo fallaría sola).
+  const probePort = async () => {
+    const item = await barItem(i0)
+    const box = await item.boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await wait(250)
+    await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 - 40)
+    await wait(400)
+    const point = await page
+      .$eval('.mount-center', (el) => {
+        const r = el.getBoundingClientRect()
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+      })
+      .catch(() => null)
+    // Suelta al aire. Puede colocar algo (en la chapa los puertos están muy
+    // juntos), por eso la partida se reinicia justo después.
+    await page.mouse.move(1200, 120)
+    await wait(250)
+    await page.mouse.up()
+    await wait(600)
+    return point
+  }
+
+  const port = await probePort()
+  check('examen arrastre: el puerto del cable normal está en pantalla', !!port)
+  if (!port) {
+    await page.close()
+    return
+  }
+
+  // Antes de examen: la misma suelta con el señuelo, en práctica, no cuenta
+  // ningún fallo. Es la otra mitad de la regla («solo examen»).
+  const practiceBefore = await store()
+  const practiceDrop = await dragTo(iDecoy, port)
+  const practiceAfter = await store()
+  check('examen arrastre: el señuelo llegó a soltarse en práctica', practiceDrop.ok)
+  check(
+    'examen arrastre: en práctica soltar mal no cuenta fallo',
+    practiceAfter.errors === practiceBefore.errors,
+    `${practiceBefore.errors} → ${practiceAfter.errors}`,
+  )
+  check(
+    'examen arrastre: el señuelo no coloca nada ni en práctica',
+    Object.keys(practiceAfter.placed).length === Object.keys(practiceBefore.placed).length,
+    `${Object.keys(practiceBefore.placed).length} → ${Object.keys(practiceAfter.placed).length}`,
+  )
+
+  // Partida limpia y modo examen (los puertos y la cámara no cambian, así que las
+  // coordenadas de arriba siguen valiendo).
+  await reset()
+  await wait(1200)
+  await skip()
+  await wait(1200)
+  await skip()
+  await wait(3500)
+  await page.evaluate(() =>
+    import('/src/store/useGameStore.ts').then((m) =>
+      m.useGameStore.setState({ mode: 'exam', stageChangedAt: 0 }),
+    ),
+  )
+  await wait(500)
+  check('examen arrastre: el examen está activo', !!(await page.$('.badge--exam')))
+  check('examen arrastre: sin paneles laterales', !(await page.$('.panel--left')))
+
+  const before = await store()
+  const beforeScore = await score()
+  check(
+    'examen arrastre: la partida limpia empieza sin colocaciones ni fallos',
+    Object.keys(before.placed).length === 0 && before.errors === 0,
+    `${Object.keys(before.placed).length} colocadas, ${before.errors} fallos`,
+  )
+
+  // 1) El señuelo, en examen, sobre un puerto de verdad: hueco equivocado.
+  const wrongDrop = await dragTo(iDecoy, port)
+  const afterWrong = await store()
+  const afterWrongScore = await score()
+  check('examen arrastre: el arrastre equivocado llegó a soltarse', wrongDrop.ok, wrongDrop.why ?? '')
+  check(
+    'examen arrastre: el puerto equivocado no coloca nada',
+    Object.keys(afterWrong.placed).length === 0,
+    `${Object.keys(afterWrong.placed).length} colocadas`,
+  )
+  check(
+    'examen arrastre: el puerto equivocado cuenta un fallo en examen',
+    afterWrong.errors === 1,
+    `${before.errors} → ${afterWrong.errors}`,
+  )
+  check(
+    'examen arrastre: el fallo resta puntos',
+    scoreNumber(afterWrongScore) < scoreNumber(beforeScore),
+    `${beforeScore} → ${afterWrongScore}`,
+  )
+
+  // 2) El cable normal, en examen, sobre su propio puerto: coloca y no cuesta.
+  const goodDrop = await dragTo(i0, port)
+  const afterGood = await store()
+  const afterGoodScore = await score()
+  check('examen arrastre: el arrastre correcto llegó a soltarse', goodDrop.ok, goodDrop.why ?? '')
+  check(
+    'examen arrastre: el puerto correcto coloca el cable',
+    Object.keys(afterGood.placed).length === 1,
+    `${Object.keys(afterWrong.placed).length} → ${Object.keys(afterGood.placed).length}`,
+  )
+  check(
+    'examen arrastre: el acierto no cuenta ningún fallo',
+    afterGood.errors === afterWrong.errors,
+    `${afterWrong.errors} → ${afterGood.errors}`,
+  )
+  check(
+    'examen arrastre: el acierto no cuesta puntos',
+    afterGoodScore === afterWrongScore,
+    `${afterWrongScore} → ${afterGoodScore}`,
+  )
+  check('examen arrastre: sin errores de página', errors.length === 0, errors.join(' | '))
+  await page.close()
+}
+
 await fullGame()
 await examGiveUpGuard()
 await skipStageGuard()
@@ -1049,6 +1285,7 @@ await dragGhostVisible()
 await sidePanels()
 await examNoHelp()
 await traySeparation()
+await examDrag()
 
 await browser.close()
 console.log(failures === 0 ? '\nTODO OK' : `\n${failures} comprobaciones fallidas`)
