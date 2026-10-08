@@ -618,12 +618,188 @@ async function skipStageGuard() {
   }
 }
 
+/* ---------- 8. El fantasma del cable se ve al arrastrar por debajo ---------- */
+async function dragGhostVisible() {
+  // Fix 359c0f0: sin acotar la Y renderizada, el fantasma caía en el plano
+  // vertical de arrastre, MUY por debajo del banco, y el banco opaco se
+  // interponía entre cámara y fantasma: el cable parecía invisible mientras se
+  // arrastraba por la mitad baja de la pantalla. La aserción es el SÍNTOMA que
+  // ve el usuario (píxeles que cambian junto al cursor), no la fórmula:
+  // reimplementar Math.max en el test pasaría aunque el renderer lo ignorara.
+  const LOW_Y = 800 // sobre la barra de cables (816-884): con el bug, 0 px
+  const MIN_PIXELS = 1000 // medido: 4706 px con el acotado y 0 px sin él (control negativo)
+  /** Ruido tolerado entre dos capturas con el fantasma encendido (escena quieta). */
+  const MAX_STATIC_PIXELS = 300
+  const WIN = { x0: 0, y0: 60, x1: 1400, y1: 760 } // excluye statusbar--raised (765-804) y .connbar (816-884)
+
+  // Decodifica las dos capturas DENTRO de la página y cuenta píxeles distintos
+  // (umbral 12 por canal, como en la sonda que validó el fix).
+  const diffCount = async (page, shotA) => {
+    const shotB = await page.screenshot({ encoding: 'base64' })
+    return page.evaluate(
+      async (a, b, x0, y0, x1, y1) => {
+        const load = async (b64) => {
+          const img = new Image()
+          img.src = 'data:image/png;base64,' + b64
+          await img.decode()
+          const c = document.createElement('canvas')
+          c.width = img.width
+          c.height = img.height
+          const ctx = c.getContext('2d')
+          ctx.drawImage(img, 0, 0)
+          return ctx.getImageData(0, 0, c.width, c.height)
+        }
+        const A = await load(a)
+        const B = await load(b)
+        let n = 0
+        for (let y = y0; y < Math.min(y1, A.height); y++) {
+          for (let x = x0; x < Math.min(x1, A.width); x++) {
+            const i = (y * A.width + x) * 4
+            if (
+              Math.abs(A.data[i] - B.data[i]) > 12 ||
+              Math.abs(A.data[i + 1] - B.data[i + 1]) > 12 ||
+              Math.abs(A.data[i + 2] - B.data[i + 2]) > 12
+            )
+              n++
+          }
+        }
+        return n
+      },
+      shotA,
+      shotB,
+      WIN.x0,
+      WIN.y0,
+      WIN.x1,
+      WIN.y1,
+    )
+  }
+
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('fantasma: menú de modos visible', menuCards.length >= 1, `${menuCards.length}`)
+  if (menuCards.length < 1) {
+    await page.close()
+    return
+  }
+  await menuCards[0].click() // modo práctica: la barra de cables está en las dos fases 3
+  const topbar = await page.waitForSelector('.topbar', { timeout: 60000 }).catch(() => null)
+  check('fantasma: barra superior visible', !!topbar)
+  if (!topbar) {
+    await page.close()
+    return
+  }
+  await wait(500)
+
+  // A la fase de conectores por la vía barata (skipStage, práctica).
+  const skip = () =>
+    page.evaluate(() =>
+      import('/src/store/useGameStore.ts').then((m) => m.useGameStore.getState().skipStage()),
+    )
+  await skip()
+  await wait(1200)
+  await skip()
+  await wait(3500)
+  const stage = await page.$eval('.badge--stage', (el) => el.textContent.trim()).catch(() => '<sin badge>')
+  check('fantasma: en la fase de conectores', stage === '3. Conectores', stage)
+
+  // Higiene de la medición: en práctica las zonas de montaje PULSAN su opacidad
+  // (MountZone, sin(elapsedTime·4)) y ensucian el diff con miles de píxeles
+  // que no son el fantasma. El modo examen las oculta (decisión 14); la barra
+  // de cables NO depende del modo (App.tsx: phase + stage.id), así que el
+  // arrastre real con el ratón sigue igual. No se restaura: la página se cierra.
+  // El aviso de fase se apaga a la vez (stageChangedAt: 0): su temporizador de
+  // 2,8 s (StageBanner) podría dispararse DENTRO de la ventana de medida en una
+  // máquina cargada y meter miles de píxeles, es decir, dar por buena una build
+  // rota.
+  await page.evaluate(() =>
+    import('/src/store/useGameStore.ts').then((m) =>
+      m.useGameStore.setState({ mode: 'exam', stageChangedAt: 0 }),
+    ),
+  )
+  await wait(300)
+
+  // Arrastre REAL desde la barra (pasa el umbral de 6 px de ConnectorBar) y
+  // puntero ABAJO, donde el fantasma tapado era el síntoma del bug.
+  const bar = await page.$('.connbar__item')
+  check('fantasma: barra de cables visible', !!bar)
+  if (!bar) {
+    await page.close()
+    return
+  }
+  const box = await bar.boundingBox()
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await wait(300)
+  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 - 40)
+  await wait(300)
+  await page.mouse.move(700, LOW_Y)
+  await wait(500)
+
+  // Evidencia de apoyo (nunca la aserción): el arrastre sigue vivo.
+  const dragging = await page.evaluate(() =>
+    import('/src/store/useGameStore.ts').then((m) => m.useGameStore.getState().dragging),
+  )
+  check('fantasma: el arrastre sigue activo abajo', dragging === true, String(dragging))
+
+  // La prueba solo vale si el fantasma va LIBRE y por el plano vertical: con un
+  // hueco imantado, Scene.tsx lo pega al puerto y el acotado de la Y (la rama
+  // que se quiere cubrir) no se ejecuta; con un plano horizontal, esa línea ni
+  // se lee. Sin estas dos aserciones la prueba podría dar `ok` cubriendo otra cosa.
+  const branch = await page.evaluate(async () => {
+    const { useGameStore } = await import('/src/store/useGameStore.ts')
+    const { STAGES } = await import('/src/data/stages.ts')
+    const s = useGameStore.getState()
+    return { drop: STAGES[s.stageIndex].drop.kind, hover: s.hoverMountId }
+  })
+  check('fantasma: plano de arrastre vertical', branch.drop === 'vertical', branch.drop)
+  check(
+    'fantasma: el fantasma va libre, sin hueco imantado',
+    branch.hover === null,
+    String(branch.hover),
+  )
+
+  // La medición: captura CON fantasma, apaga SOLO el fantasma (dragging: false
+  // mantiene selectedId, dragPos y las bandas de UI intactas) y vuelve a
+  // capturar. Solo el cable puede explicar la diferencia.
+  const withGhost = await page.screenshot({ encoding: 'base64' })
+  await wait(400)
+  // Control de escena estática, ANTES de apagar el fantasma: dos capturas con el
+  // fantasma encendido deben salir casi idénticas. Si aquí aparecen cientos de
+  // píxeles, la ventana está midiendo algo que se mueve solo (aviso de fase,
+  // carga tardía del modelo, animación) y el recuento de abajo dejaría de
+  // significar «esto es el fantasma».
+  const staticNoise = await diffCount(page, withGhost)
+  check(
+    'fantasma: la escena está quieta entre dos capturas',
+    staticNoise <= MAX_STATIC_PIXELS,
+    `${staticNoise} px cambian con el fantasma encendido; límite ${MAX_STATIC_PIXELS}`,
+  )
+  await page.evaluate(() =>
+    import('/src/store/useGameStore.ts').then((m) => m.useGameStore.setState({ dragging: false })),
+  )
+  await wait(400)
+  const changed = await diffCount(page, withGhost)
+  check(
+    'fantasma: el cable se dibuja junto al cursor abajo',
+    changed >= MIN_PIXELS,
+    `${changed} px cambian en la ventana y ${WIN.y0}-${WIN.y1} (excluidas statusbar y connbar) frente a ${staticNoise} px de ruido estático; umbral ${MIN_PIXELS}: con el acotado se midieron 4706 px y sin él, 0`,
+  )
+  check('fantasma: sin errores', errors.length === 0, errors.join(' | '))
+
+  await page.mouse.up().catch(() => {})
+  await page.close()
+}
+
 await fullGame()
 await examGiveUpGuard()
 await skipStageGuard()
 await unknownBoardGuard()
 await rotationsGuard()
 await unknownBoardNoCalibration()
+await dragGhostVisible()
 
 await browser.close()
 console.log(failures === 0 ? '\nTODO OK' : `\n${failures} comprobaciones fallidas`)
