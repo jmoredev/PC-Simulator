@@ -94,7 +94,7 @@ export interface ComponentDef {
   name: string
   subtitle: string
   category: ComponentCategory
-  /** Explicación adaptada a 4º de la ESO. */
+  /** Explicación en lenguaje divulgativo. */
   description: string
   /** Dato curioso o utilidad práctica. */
   funFact?: string
