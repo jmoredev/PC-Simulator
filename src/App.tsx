@@ -54,18 +54,28 @@ export default function App() {
           {phase !== 'menu' && (
             <>
               <TopBar />
-              <ComponentList
-                onInspect={setInspectedId}
-                open={leftOpen}
-                onToggle={() => setLeftOpen((v) => !v)}
-              />
-              <InfoPanel
-                inspectedId={inspectedId}
-                selectedId={selectedId}
-                mode={mode}
-                open={rightOpen}
-                onToggle={() => setRightOpen((v) => !v)}
-              />
+              {/*
+                En examen no se muestran los paneles: la lista de fases es el
+                nombre de cada pieza y la ficha es la explicación, así que los
+                dos son la respuesta. El examen se juega arrastrando las piezas
+                de la mesa (no hay «clic y clic», que necesita la lista).
+              */}
+              {mode === 'practice' && (
+                <>
+                  <ComponentList
+                    onInspect={setInspectedId}
+                    open={leftOpen}
+                    onToggle={() => setLeftOpen((v) => !v)}
+                  />
+                  <InfoPanel
+                    inspectedId={inspectedId}
+                    selectedId={selectedId}
+                    mode={mode}
+                    open={rightOpen}
+                    onToggle={() => setRightOpen((v) => !v)}
+                  />
+                </>
+              )}
               <StatusBar raised={cableBar} />
               {cableBar && <ConnectorBar />}
               <StageBanner />

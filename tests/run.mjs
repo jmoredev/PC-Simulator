@@ -899,6 +899,77 @@ async function sidePanels() {
   await page.close()
 }
 
+/* ---------- 10. El examen no da ninguna ayuda ---------- */
+async function examNoHelp() {
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('examen sin ayudas: menú de modos visible', menuCards.length >= 2, `${menuCards.length}`)
+  if (menuCards.length < 2) {
+    await page.close()
+    return
+  }
+  await menuCards[1].click() // examen
+  const topbar = await page.waitForSelector('.topbar', { timeout: 60000 }).catch(() => null)
+  check('examen sin ayudas: barra superior visible', !!topbar)
+  if (!topbar) {
+    await page.close()
+    return
+  }
+  await wait(1500)
+
+  // 1) Nada de paneles: ni la lista (el nombre de cada pieza) ni la ficha
+  //    (la explicación). Los dos son la respuesta.
+  check('examen sin ayudas: no hay panel izquierdo', !(await page.$('.panel--left')))
+  check('examen sin ayudas: no hay ficha del componente', !(await page.$('.panel--right')))
+  check('examen sin ayudas: no hay lista de piezas', !(await page.$('.comp-item')))
+  // La leyenda de controles y el aviso de la barra de estado NO son la
+  // respuesta, así que se quedan (decisión de producto).
+  check('examen sin ayudas: la leyenda de controles se queda', !!(await page.$('.help')))
+
+  // 2) Nada de imán: en examen el fantasma sigue al puntero aunque esté sobre
+  //    el hueco correcto. Se comprueba sobre el módulo que usa el renderer
+  //    (`src/three/dragGhost.ts`), no sobre una copia de su lógica.
+  const snap = await page.evaluate(async () => {
+    const { ghostSnaps, ghostPosition } = await import('/src/three/dragGhost.ts')
+    const { MOUNTS_BY_STAGE, COMPONENT_BY_ID } = await import('/src/data/components.ts')
+    const { STAGES } = await import('/src/data/stages.ts')
+    const board = MOUNTS_BY_STAGE.board[0]
+    const stage = STAGES.find((s) => s.id === 'board')
+    const dragging = COMPONENT_BY_ID[Object.keys(COMPONENT_BY_ID)[0]]
+    const dragPos = [1.5, 1.5]
+    return {
+      practicaConHueco: ghostSnaps('practice', board.id),
+      practicaSinHueco: ghostSnaps('practice', null),
+      examenConHueco: ghostSnaps('exam', board.id),
+      posPractica: ghostPosition(stage, dragPos, 'practice', board.id, false),
+      posExamen: ghostPosition(stage, dragPos, 'exam', board.id, false),
+      hueco: board.position,
+      puntero: [dragPos[0], stage.drop.y + 0.08, dragPos[1]],
+      existe: !!dragging,
+    }
+  })
+  check('examen sin ayudas: en práctica el imán existe', snap.practicaConHueco === true)
+  check('examen sin ayudas: sin hueco no hay imán ni en práctica', snap.practicaSinHueco === false)
+  check('examen sin ayudas: en examen el imán NO existe', snap.examenConHueco === false)
+  check(
+    'examen sin ayudas: en práctica el fantasma se pega al hueco',
+    JSON.stringify(snap.posPractica) ===
+      JSON.stringify([snap.hueco[0], snap.hueco[1] + 0.05, snap.hueco[2]]),
+    `${JSON.stringify(snap.posPractica)} frente al hueco ${JSON.stringify(snap.hueco)}`,
+  )
+  check(
+    'examen sin ayudas: en examen el fantasma sigue al puntero',
+    JSON.stringify(snap.posExamen) === JSON.stringify(snap.puntero),
+    `${JSON.stringify(snap.posExamen)} vs puntero ${JSON.stringify(snap.puntero)}`,
+  )
+
+  check('examen sin ayudas: sin errores', errors.length === 0, errors.join(' | '))
+  await page.close()
+}
+
 await fullGame()
 await examGiveUpGuard()
 await skipStageGuard()
@@ -907,6 +978,7 @@ await rotationsGuard()
 await unknownBoardNoCalibration()
 await dragGhostVisible()
 await sidePanels()
+await examNoHelp()
 
 await browser.close()
 console.log(failures === 0 ? '\nTODO OK' : `\n${failures} comprobaciones fallidas`)
