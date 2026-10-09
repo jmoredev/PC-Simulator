@@ -15,6 +15,7 @@ import {
   trayScaleFor,
 } from '../data/components'
 import { STAGES, REAR_CAMERA } from '../data/stages'
+import { ghostPosition, ghostSnaps } from './dragGhost'
 import { useCurrentStage, useGameStore, placedInStage } from '../store/useGameStore'
 import { useCalibrationStore } from '../store/useCalibrationStore'
 import type { ComponentDef, Stage, Vec3 } from '../types'
@@ -46,13 +47,6 @@ function dropPlaneFor(stage: Stage): THREE.Plane {
 
 /** ¿La fase se juega sobre un plano vertical (chapa trasera de frente)? */
 const isVertical = (stage: Stage) => stage.drop.kind === 'vertical'
-
-/**
- * Cara superior del banco. Por debajo de ella el banco se interpone entre la
- * cámara y lo que se dibuje detrás, así que el fantasma del arrastre se acota
- * justo por encima (ver `DragGhost`).
- */
-const BENCH_TOP = -0.172 + 0.32 / 2
 
 /** Cámara de la pestaña «Rotaciones»: el modelo centrado, a media distancia. */
 const ROTATION_VIEW = {
@@ -299,39 +293,25 @@ function DragGhost({ stage }: { stage: Stage }) {
   const selectedId = useGameStore((s) => s.selectedId)
   const dragPos = useGameStore((s) => s.dragPos)
   const hoverMountId = useGameStore((s) => s.hoverMountId)
+  const mode = useGameStore((s) => s.mode)
 
   if (!dragging || !selectedId) return null
   const def = COMPONENT_BY_ID[selectedId]
   if (!def) return null
 
   const vertical = isVertical(stage)
-  const mount = hoverMountId ? MOUNT_BY_ID[hoverMountId] : null
   // Conectores sin imagen PNG: usan el enchufe 3D (ConnectorPlug) anclado al
   // cursor, igual que quedará colocado, en vez del placeholder procedural que
   // se dibujaba desplazado en el plano vertical.
   const usePlug =
     vertical && def.category === 'conector' && !connectorImageUrl(def.kind)
 
-  let position: [number, number, number]
-  if (mount) {
-    position = usePlug
-      ? [mount.position[0], mount.position[1], mount.position[2]]
-      : vertical
-        ? [mount.position[0] - 0.12, mount.position[1], mount.position[2]]
-        : [mount.position[0], mount.position[1] + 0.05, mount.position[2]]
-  } else if (stage.drop.kind === 'vertical') {
-    // El plano de la chapa se extiende muy por debajo del banco. Sin acotar, el
-    // fantasma queda detrás del banco y el cable parece invisible mientras se
-    // arrastra por la mitad baja de la pantalla: solo reaparece al llegar a la
-    // altura de los puertos. Acotado, se ve apoyado en el banco y sigue subiendo
-    // con el puntero, sin saltos.
-    const y = Math.max(dragPos[0], BENCH_TOP + 0.06)
-    position = usePlug
-      ? [stage.drop.x, y, dragPos[1]]
-      : [stage.drop.x - 0.12, y, dragPos[1]]
-  } else {
-    position = [dragPos[0], stage.drop.y + 0.08, dragPos[1]]
-  }
+  // En examen el fantasma no se pega al hueco ni se pone verde: el imán diría
+  // cuál es el hueco correcto. La posición y el color los decide `dragGhost.ts`
+  // (con pruebas propias), no esta función de dibujo.
+  const snapped = ghostSnaps(mode, hoverMountId)
+  const mount = snapped && hoverMountId ? MOUNT_BY_ID[hoverMountId] : null
+  const position = ghostPosition(stage, dragPos, mode, hoverMountId, usePlug)
 
   return (
     <group position={position}>
@@ -350,7 +330,7 @@ function DragGhost({ stage }: { stage: Stage }) {
       >
         <ringGeometry args={vertical ? [0.1, 0.13, 32] : [0.42, 0.5, 32]} />
         <meshBasicMaterial
-          color={mount ? '#22c55e' : '#38bdf8'}
+          color={snapped ? '#22c55e' : '#38bdf8'}
           transparent
           opacity={0.85}
           side={THREE.DoubleSide}

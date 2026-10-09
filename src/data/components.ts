@@ -49,6 +49,43 @@ function traySlot(stage: StageId, indexInStage: number): [number, number] {
   return [cols[Math.min(col, cols.length - 1)], rows[row]]
 }
 
+/**
+ * Dimensión mayor con la que se dibuja una pieza en la mesa. Los modelos se
+ * normalizan a `def.size` y luego se escalan para no pasar de 0,75
+ * (`ComponentModel` + `trayScaleFor`), así que ninguna pieza ocupa más que esto
+ * en ningún eje. Los placeholders procedurales (los cables) son más pequeños.
+ */
+export const TRAY_MAX_SPAN = 0.75
+
+/** Separación más pequeña entre dos líneas de una rejilla (columnas o filas). */
+function gridGap(lines: number[]): number {
+  return Math.min(...lines.slice(1).map((v, i) => Math.abs(v - lines[i])))
+}
+
+/** Aire que se deja como mínimo entre dos piezas vecinas de la mesa. */
+const TRAY_MIN_GAP = 0.15
+
+/**
+ * Desplazamiento aleatorio máximo de una pieza dentro de su celda.
+ *
+ * Se deriva de la rejilla en vez de ser un valor fijo: dos piezas vecinas se
+ * acercan como mucho el doble de este valor, así que la separación nunca baja
+ * de la huella de una pieza más el aire. Con el ±0,4 fijo de antes dos piezas
+ * de la mesa se solapaban (la rejilla de la identificación dejaba 0,1 u entre
+ * vecinas y el latiguillo de una clavija atravesaba la otra). Donde la rejilla
+ * es estrecha no queda margen y el desplazamiento es 0: la variedad de la mesa
+ * la da el barajado, no el desplazamiento.
+ */
+export function trayJitter(stage: StageId): number {
+  const { cols, rows } = STAGE_BY_ID[stage].tray
+  const gap = Math.min(gridGap(cols), gridGap(rows))
+  // Una rejilla de una sola línea no tiene distancia que medir en ese eje
+  // (`gridGap` devuelve infinito) y una de 1×1 no tiene parejas: sin este
+  // guardia el desplazamiento saldría infinito y la pieza se iría de la mesa.
+  if (!Number.isFinite(gap)) return 0
+  return Math.max(0, (gap - TRAY_MAX_SPAN - TRAY_MIN_GAP) / 2)
+}
+
 /* ------------------------------------------------------------------ *
  *  PUNTOS DE MONTAJE
  * ------------------------------------------------------------------ */
@@ -669,13 +706,16 @@ export function shuffleLayout(): void {
   for (const stage of stages) {
     const defs = COMPONENTS_BY_STAGE[stage]
     const order = shuffle(defs.length)
+    const jitter = trayJitter(stage)
     defs.forEach((def, i) => {
       const [x, z] = traySlot(stage, order[i])
       // Pequeño desplazamiento aleatorio para que la mesa no salga igual en
-      // cada partida (los huecos de montaje no se tocan).
+      // cada partida. Su tope sale de la rejilla (`trayJitter`), de forma que
+      // dos piezas vecinas nunca quedan más juntas de lo que ocupan (los huecos
+      // de montaje no se tocan).
       const pos: [number, number] = [
-        x + (Math.random() - 0.5) * 0.8,
-        z + (Math.random() - 0.5) * 0.8,
+        x + (Math.random() - 0.5) * 2 * jitter,
+        z + (Math.random() - 0.5) * 2 * jitter,
       ]
       if (stage === 'identify') def.identifyPos = pos
       else def.trayPos = pos
