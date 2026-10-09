@@ -79,6 +79,10 @@ const TRAY_MIN_GAP = 0.15
 export function trayJitter(stage: StageId): number {
   const { cols, rows } = STAGE_BY_ID[stage].tray
   const gap = Math.min(gridGap(cols), gridGap(rows))
+  // Una rejilla de una sola línea no tiene distancia que medir en ese eje
+  // (`gridGap` devuelve infinito) y una de 1×1 no tiene parejas: sin este
+  // guardia el desplazamiento saldría infinito y la pieza se iría de la mesa.
+  if (!Number.isFinite(gap)) return 0
   return Math.max(0, (gap - TRAY_MAX_SPAN - TRAY_MIN_GAP) / 2)
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { CALIBRATE } from './calibration'
 import { useCurrentStage, useGameStore } from './store/useGameStore'
+import type { GameMode } from './types'
 import { Scene } from './three/Scene'
 import { CalibrationPanel } from './ui/CalibrationPanel'
 import { ComponentList } from './ui/ComponentList'
@@ -14,16 +15,53 @@ import { StageBanner } from './ui/StageBanner'
 import { StatusBar } from './ui/StatusBar'
 import { TopBar } from './ui/TopBar'
 
+/**
+ * Paneles laterales con su estado de plegado. `App` lo monta con
+ * `key={startedAt}`, así que al empezar una partida nueva se vuelve a montar y
+ * recupera el reparto por defecto: la lista plegada y la ficha abierta. Sin la
+ * clave, el estado se arrastraría de una partida a la siguiente, porque este
+ * componente no se desmonta al pasar por el menú.
+ */
+function SidePanels({
+  onInspect,
+  inspectedId,
+  selectedId,
+  mode,
+}: {
+  onInspect: (id: string | null) => void
+  inspectedId: string | null
+  selectedId: string | null
+  mode: GameMode
+}) {
+  const [leftOpen, setLeftOpen] = useState(false)
+  const [rightOpen, setRightOpen] = useState(true)
+  return (
+    <>
+      <ComponentList
+        onInspect={onInspect}
+        open={leftOpen}
+        onToggle={() => setLeftOpen((v) => !v)}
+      />
+      <InfoPanel
+        inspectedId={inspectedId}
+        selectedId={selectedId}
+        mode={mode}
+        open={rightOpen}
+        onToggle={() => setRightOpen((v) => !v)}
+      />
+    </>
+  )
+}
+
 export default function App() {
   const phase = useGameStore((s) => s.phase)
   const mode = useGameStore((s) => s.mode)
   const selectedId = useGameStore((s) => s.selectedId)
   const wrongFlash = useGameStore((s) => s.wrongFlash)
   const stage = useCurrentStage()
+  /** Momento en que empezó la partida: cambia con «Reiniciar» y con una nueva. */
+  const startedAt = useGameStore((s) => s.startedAt)
   const [inspectedId, setInspectedId] = useState<string | null>(null)
-  /** Los paneles laterales empiezan con la ficha abierta y la lista plegada. */
-  const [leftOpen, setLeftOpen] = useState(false)
-  const [rightOpen, setRightOpen] = useState(true)
   /** En la fase de conectores los cables salen de una barra inferior. */
   const cableBar = phase === 'building' && stage.id === 'ports'
 
@@ -61,20 +99,13 @@ export default function App() {
                 de la mesa (no hay «clic y clic», que necesita la lista).
               */}
               {mode === 'practice' && (
-                <>
-                  <ComponentList
-                    onInspect={setInspectedId}
-                    open={leftOpen}
-                    onToggle={() => setLeftOpen((v) => !v)}
-                  />
-                  <InfoPanel
-                    inspectedId={inspectedId}
-                    selectedId={selectedId}
-                    mode={mode}
-                    open={rightOpen}
-                    onToggle={() => setRightOpen((v) => !v)}
-                  />
-                </>
+                <SidePanels
+                  key={startedAt}
+                  onInspect={setInspectedId}
+                  inspectedId={inspectedId}
+                  selectedId={selectedId}
+                  mode={mode}
+                />
               )}
               <StatusBar raised={cableBar} />
               {cableBar && <ConnectorBar />}

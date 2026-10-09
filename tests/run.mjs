@@ -895,6 +895,35 @@ async function sidePanels() {
       rightBack?.cls.includes('panel--collapsed') === false,
     JSON.stringify([leftBack, rightBack]),
   )
+
+  // El reparto por defecto es el de CADA partida, no una preferencia que se
+  // arrastre. Ojo con el camino elegido: pasar por el menú DESMONTA los paneles
+  // (App deja de pintarlos con `phase === 'menu'`), así que ese camino reinicia
+  // el estado solo y no probaría nada. El camino que importa es «Reiniciar»,
+  // que empieza una partida nueva sin desmontar nada.
+  await page.click('.panel--left .panel-toggle') // despliega la lista
+  await page.click('.panel--right .panel-toggle') // pliega la ficha
+  await wait(300)
+  const alReves = await read()
+  check(
+    'paneles: se pueden dejar al revés del reparto por defecto',
+    find(alReves, 'left')?.cuerpo === true && find(alReves, 'right')?.cuerpo === false,
+    JSON.stringify(alReves),
+  )
+  await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('.topbar button')].find((b) =>
+      b.textContent?.includes('Reiniciar'),
+    )
+    if (btn) btn.click()
+  })
+  await wait(1500)
+  const nueva = await read()
+  check(
+    'paneles: reiniciar la partida vuelve al reparto por defecto',
+    find(nueva, 'left')?.cls.includes('panel--collapsed') === true &&
+      find(nueva, 'right')?.cls.includes('panel--collapsed') === false,
+    JSON.stringify(nueva),
+  )
   check('paneles: sin errores', errors.length === 0, errors.join(' | '))
   await page.close()
 }
@@ -1027,12 +1056,14 @@ async function traySeparation() {
     )
   }
   // La identificación es la fase que se ve entera sobre la mesa y la que se
-  // reportó con las clavijas de audio encima unas de otras: además de no
-  // solaparse, deja aire de verdad entre piezas.
+  // reportó con las clavijas de audio encima unas de otras. Esta comprobación no
+  // es un invariante de comportamiento sino un **suelo de diseño**: fija que la
+  // rejilla de esa fase siga dejando más aire del mínimo (0,9 en vez de 0,75),
+  // que es la regresión que provocó el solape cuando la rejilla se estrechó.
   check(
-    'mesa: la identificación deja aire entre piezas',
+    'mesa: la identificación mantiene su suelo de diseño (0,9 u)',
     result.identify.peor >= 0.9,
-    `separación mínima ${result.identify.peor} u (mínimo 0,9)`,
+    `separación mínima ${result.identify.peor} u (suelo de diseño 0,9; mínimo duro 0,75)`,
   )
 
   check('mesa: sin errores', errors.length === 0, errors.join(' | '))
