@@ -1,12 +1,35 @@
-import { COMPONENTS, MOUNTS, TOTAL_STEPS } from '../data/components'
+import {
+  COMPONENT_BY_ID,
+  COMPONENTS,
+  IDENTIFY_LABEL,
+  MOUNTS,
+  MOUNT_BY_ID,
+  TOTAL_STEPS,
+  componentForMount,
+} from '../data/components'
 import { STAGES } from '../data/stages'
 import { examScore, scoreColor, useGameStore } from '../store/useGameStore'
+import type { StageId } from '../types'
+
+/** Cómo se llama cada fase en el resumen, en palabras y no en identificadores. */
+const STAGE_WORD: Record<StageId, string> = {
+  identify: 'identificación',
+  board: 'sobre la placa',
+  ports: 'conectores',
+  peripherals: 'periféricos',
+}
 
 function formatTime(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000))
   const m = Math.floor(total / 60)
   const s = total % 60
   return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+/** Nombre corto y divulgativo de una pieza, el mismo que usan los carteles. */
+function pieceName(id: string): string {
+  const def = COMPONENT_BY_ID[id]
+  return def ? IDENTIFY_LABEL[def.kind] : id
 }
 
 export function FinishModal() {
@@ -17,6 +40,8 @@ export function FinishModal() {
   const startedAt = useGameStore((s) => s.startedAt)
   const finishedAt = useGameStore((s) => s.finishedAt)
   const attempts = useGameStore((s) => s.attempts)
+  const misses = useGameStore((s) => s.misses)
+  const unplaced = useGameStore((s) => s.unplaced)
   const reset = useGameStore((s) => s.reset)
   const backToMenu = useGameStore((s) => s.backToMenu)
 
@@ -75,6 +100,39 @@ export function FinishModal() {
             ? 'Cada fallo y cada pieza sin colocar restan puntos.'
             : 'Practica de nuevo para bajar el tiempo.'}
         </p>
+
+        {isExam && misses.length > 0 && (
+          <section className="finish-review finish-review--misses">
+            <h2>Qué falló</h2>
+            <ul className="finish-review__list">
+              {misses.map((miss, i) => {
+                const mount = MOUNT_BY_ID[miss.mountId]
+                const correct = mount ? componentForMount(mount) : undefined
+                return (
+                  <li key={`${miss.mountId}-${miss.componentId}-${i}`}>
+                    Pusiste <b>«{pieceName(miss.componentId)}»</b> en{' '}
+                    <b>«{mount?.label ?? 'otro sitio'}»</b> → ahí va{' '}
+                    <b>«{correct ? IDENTIFY_LABEL[correct.kind] : 'otra pieza'}»</b>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )}
+
+        {isExam && unplaced.length > 0 && (
+          <section className="finish-review finish-review--unplaced">
+            <h2>Te quedó por colocar</h2>
+            <ul className="finish-review__list">
+              {unplaced.map((item) => (
+                <li key={`${item.stage}-${item.componentId}`}>
+                  <b>{pieceName(item.componentId)}</b>{' '}
+                  <span className="finish-review__where">({STAGE_WORD[item.stage]})</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <div className="overlay-actions">
           <button className="btn btn--ghost" onClick={backToMenu}>

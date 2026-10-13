@@ -4,7 +4,19 @@
  *   npm run dev -- --port 5199        # en otra terminal
  *   node tests/run.mjs
  *
- * Variables: BASE_URL (por defecto http://localhost:5199), CHROME (ruta al binario).
+ * Variables: BASE_URL (por defecto http://localhost:5199), CHROME (ruta al binario;
+ * si no se define, se busca en las cachés de puppeteer y Playwright y en las
+ * instalaciones habituales de Chrome), ONLY (lista de secciones separadas por
+ * comas; acota la pasada a esas, que es lo que hace viable comprobar una
+ * falsación sin esperar los ~11 minutos de la pasada completa; un nombre que no
+ * exista para la pasada con error en vez de decir «TODO OK» sin ejecutar nada).
+ *
+ * Aviso: si has tocado `src/`, **reinicia el servidor de desarrollo** antes de
+ * correr el arnés. Con HMR, el import dinámico de `/src/store/useGameStore.ts`
+ * puede devolver una COPIA distinta de la que usa la app (Vite añade `?t=…` al
+ * módulo invalidado), y entonces las acciones del store no llegan a la partida:
+ * las secciones que las usan fallan de forma desconcertante (§7, §12 y §13 usan
+ * ese import; §14 y §15 van por la interfaz, así que no les afecta).
  * Se usa `localhost` y no `127.0.0.1` porque Vite 8 puede escuchar solo en IPv6
  * (`[::1]`); si la instancia de desarrollo escucha solo en IPv4, pásale
  * BASE_URL=http://127.0.0.1:5199.
@@ -21,18 +33,104 @@ const ITEMS = 36
 /** Colocaciones de toda la partida (identificación + montaje + cables + periféricos). */
 const PLACEABLE = 35
 
+/**
+ * Ruta a un Chromium usable. Antes solo miraba la caché de puppeteer en Linux,
+ * así que en Windows el arnés no arrancaba sin pasar CHROME a mano. Ahora busca
+ * en la caché de puppeteer (las tres plataformas), en los navegadores de
+ * Playwright y en las instalaciones habituales de Chrome.
+ */
 function findChrome() {
   if (process.env.CHROME) return process.env.CHROME
-  const root = join(homedir(), '.cache', 'puppeteer', 'chrome')
-  if (!existsSync(root)) throw new Error('No encuentro Chromium. Define CHROME=<ruta>.')
-  for (const dir of readdirSync(root)) {
-    const bin = join(root, dir, 'chrome-linux64', 'chrome')
-    if (existsSync(bin)) return bin
+
+  const candidates = []
+  const add = (...parts) => candidates.push(join(...parts))
+
+  // Caché de puppeteer (por defecto ~/.cache/puppeteer/chrome).
+  const puppeteerCache =
+    process.env.PUPPETEER_CACHE_DIR ?? join(homedir(), '.cache', 'puppeteer', 'chrome')
+  if (existsSync(puppeteerCache)) {
+    for (const dir of readdirSync(puppeteerCache)) {
+      add(puppeteerCache, dir, 'chrome-linux64', 'chrome')
+      add(puppeteerCache, dir, 'chrome-linux', 'chrome')
+      add(puppeteerCache, dir, 'chrome-win64', 'chrome.exe')
+      add(puppeteerCache, dir, 'chrome-win', 'chrome.exe')
+      add(puppeteerCache, dir, 'chrome-mac-arm64', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
+      add(puppeteerCache, dir, 'chrome-mac-x64', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
+    }
   }
-  throw new Error('No encuentro el binario de Chromium. Define CHROME=<ruta>.')
+
+  // Navegadores de Playwright, si están instalados (`npx playwright install`).
+  const playwrightCache =
+    process.env.PLAYWRIGHT_BROWSERS_PATH ??
+    (process.platform === 'win32'
+      ? join(process.env.LOCALAPPDATA ?? homedir(), 'ms-playwright')
+      : process.platform === 'darwin'
+        ? join(homedir(), 'Library', 'Caches', 'ms-playwright')
+        : join(homedir(), '.cache', 'ms-playwright'))
+  if (existsSync(playwrightCache)) {
+    for (const dir of readdirSync(playwrightCache).filter((d) => d.startsWith('chromium-'))) {
+      add(playwrightCache, dir, 'chrome-linux', 'chrome')
+      add(playwrightCache, dir, 'chrome-linux64', 'chrome')
+      add(playwrightCache, dir, 'chrome-win64', 'chrome.exe')
+      add(playwrightCache, dir, 'chrome-win', 'chrome.exe')
+      add(playwrightCache, dir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
+    }
+  }
+
+  // Chrome instalado en su sitio de siempre.
+  if (process.platform === 'win32') {
+    const local = process.env.LOCALAPPDATA ?? ''
+    add('C:', 'Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe')
+    add('C:', 'Program Files (x86)', 'Google', 'Chrome', 'Application', 'chrome.exe')
+    add(local, 'Google', 'Chrome', 'Application', 'chrome.exe')
+  } else if (process.platform === 'darwin') {
+    add('/Applications', 'Google Chrome.app', 'Contents', 'MacOS', 'Google Chrome')
+  } else {
+    add('/usr', 'bin', 'google-chrome')
+    add('/usr', 'bin', 'chromium')
+    add('/usr', 'bin', 'chromium-browser')
+  }
+
+  const found = candidates.find((path) => existsSync(path))
+  if (found) return found
+  throw new Error(
+    'No encuentro Chromium. Define CHROME=<ruta>. Se ha buscado en:\n  ' +
+      candidates.join('\n  '),
+  )
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * ¿El elemento existe Y ocupa sitio en pantalla? La presencia en el DOM no dice
+ * nada: un panel plegado o una tarjeta sin montar siguen existiendo en el HTML.
+ */
+async function isVisible(page, selector) {
+  return page
+    .$$eval(selector, (els) =>
+      els.some((el) => {
+        const r = el.getBoundingClientRect()
+        return r.width > 0 && r.height > 0
+      }),
+    )
+    .catch(() => false)
+}
+
+/**
+ * Pulsa el primer botón de la barra superior cuyo texto empiece por `text`.
+ * Preferir esto al import dinámico del store: el botón es lo que pulsa una
+ * persona y no depende de qué instancia del módulo tenga la app.
+ */
+async function clickButton(page, text) {
+  for (const handle of await page.$$('.topbar button')) {
+    const label = ((await handle.evaluate((el) => el.textContent ?? '')) ?? '').trim()
+    if (label.startsWith(text)) {
+      await handle.click()
+      return true
+    }
+  }
+  return false
+}
 
 async function newPage(browser, url, seed) {
   const page = await browser.newPage()
@@ -126,6 +224,68 @@ const check = (name, ok, detail = '') => {
   if (!ok) failures++
 }
 
+/**
+ * Antes de nada: en BASE_URL tiene que haber un simulador vivo. Si el servidor no
+ * está, o está en otro puerto (Vite se pasa al siguiente en silencio cuando el
+ * puerto está ocupado), todas las secciones fallarían con errores que parecen del
+ * código. Se para con un mensaje claro en vez de con veinte fallos raros.
+ */
+async function requireServer() {
+  try {
+    const res = await fetch(BASE_URL)
+    const html = await res.text()
+    if (!res.ok || !html.includes('id="root"')) throw new Error(`HTTP ${res.status}`)
+  } catch (e) {
+    console.error(`No hay simulador en ${BASE_URL} (${e.message}).`)
+    console.error(
+      'Levanta `npm run dev -- --port 5199` y comprueba la línea «Local:» del log: ' +
+        'si el puerto estaba ocupado, Vite se pasa a 5200 sin avisar.',
+    )
+    process.exit(1)
+  }
+}
+
+await requireServer()
+
+/**
+ * Varias secciones mueven la partida llamando al store con un import dinámico
+ * (`/src/store/useGameStore.ts`). Si se ha tocado `src/` con el servidor de
+ * desarrollo levantado, HMR deja ese módulo con `?t=…` y el import devuelve una
+ * COPIA distinta de la que usa la app: las acciones no llegan a la partida y el
+ * arnés falla como si fuese un defecto del producto (§7, §8, §12 y §13).
+ *
+ * Esto lo detecta antes de correr nada: se mueve el store desde el import y se
+ * comprueba que la app lo refleja en el DOM. Si no, se para con el motivo.
+ */
+async function requireSameStoreInstance() {
+  const page = await browser.newPage()
+  try {
+    await page.goto(BASE_URL, { waitUntil: 'networkidle0', timeout: 180000 })
+    await page.waitForSelector('button.mode-card', { timeout: 60000 })
+    const cards = await page.$$('button.mode-card')
+    await cards[0].click() // práctica
+    await page.waitForSelector('.badge--stage', { timeout: 60000 })
+    await wait(400)
+    const antes = await page.$eval('.badge--stage', (el) => el.textContent.trim())
+    await page.evaluate(() =>
+      import('/src/store/useGameStore.ts').then((m) => m.useGameStore.getState().skipStage()),
+    )
+    await wait(700)
+    const despues = await page.$eval('.badge--stage', (el) => el.textContent.trim())
+    if (antes === despues) {
+      console.error(
+        `El import dinámico del store NO es la misma instancia que la de la app (${antes} → ${despues}).`,
+      )
+      console.error(
+        'Pasa al tocar `src/` con el servidor levantado: reinícialo antes de correr el arnés (HMR deja el módulo con ?t=…).',
+      )
+      process.exit(1)
+    }
+  } finally {
+    await page.close()
+  }
+}
+
 const browser = await puppeteer.launch({
   executablePath: findChrome(),
   headless: true,
@@ -136,6 +296,8 @@ const browser = await puppeteer.launch({
     '--use-angle=swiftshader',
   ],
 })
+
+await requireSameStoreInstance()
 
 /* ---------- 1. Modo calibración ---------- */
 {
@@ -956,7 +1118,8 @@ async function examNoHelp() {
   check('examen sin ayudas: no hay lista de piezas', !(await page.$('.comp-item')))
   // La leyenda de controles y el aviso de la barra de estado NO son la
   // respuesta, así que se quedan (decisión de producto).
-  check('examen sin ayudas: la leyenda de controles se queda', !!(await page.$('.help')))
+  check('examen sin ayudas: la leyenda de controles se ve', await isVisible(page, '.help__card'))
+  check('examen sin ayudas: el botón de la leyenda se ve', await isVisible(page, '.help__toggle'))
 
   // 2) Nada de imán: en examen el fantasma sigue al puntero aunque esté sobre
   //    el hueco correcto. Se comprueba sobre el módulo que usa el renderer
@@ -995,6 +1158,39 @@ async function examNoHelp() {
     `${JSON.stringify(snap.posExamen)} vs puntero ${JSON.stringify(snap.puntero)}`,
   )
 
+  // La comprobación anterior solo vale si puede fallar: con la leyenda
+  // recordada como oculta, la tarjeta NO debe verse (y el botón sí, que es como
+  // se vuelve a abrir). Sin este caso, un `isVisible` que devolviera siempre
+  // `true` pasaría igual.
+  {
+    const oculta = await newPage(browser, `${BASE_URL}/?board=motherboard-01`, () =>
+      localStorage.setItem('pc-sim-help', 'hidden'),
+    )
+    await oculta.page.waitForSelector('button.mode-card', { timeout: 60000 })
+    const cards = await oculta.page.$$('button.mode-card')
+    if (cards.length >= 2) {
+      await cards[1].click()
+      await oculta.page.waitForSelector('.topbar', { timeout: 60000 })
+      await wait(800)
+      check(
+        'examen sin ayudas: con la leyenda oculta, la tarjeta no se ve',
+        !(await isVisible(oculta.page, '.help__card')),
+      )
+      check(
+        'examen sin ayudas: con la leyenda oculta, el botón sigue viéndose',
+        await isVisible(oculta.page, '.help__toggle'),
+      )
+    } else {
+      check('examen sin ayudas: la leyenda oculta arranca', false, `${cards.length} tarjetas`)
+    }
+    check(
+      'examen sin ayudas: leyenda oculta sin errores',
+      oculta.errors.length === 0,
+      oculta.errors.join(' | '),
+    )
+    await oculta.page.close()
+  }
+
   check('examen sin ayudas: sin errores', errors.length === 0, errors.join(' | '))
   await page.close()
 }
@@ -1028,19 +1224,39 @@ async function traySeparation() {
         const at = (d) => (stage === 'identify' ? d.identifyPos : d.trayPos)
         let worst = Infinity
         let bad = 0
+        let worstCol = Infinity
+        let malaCol = 0
         for (let run = 0; run < runs; run++) {
           shuffleLayout()
           for (let i = 0; i < defs.length; i++) {
             for (let j = i + 1; j < defs.length; j++) {
               const a = at(defs[i])
               const b = at(defs[j])
-              const sep = Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]))
+              const dx = Math.abs(a[0] - b[0])
+              const dz = Math.abs(a[1] - b[1])
+              const sep = Math.max(dx, dz)
               if (sep < worst) worst = sep
               if (sep < 0.75) bad++
+              // Misma «columna visual»: la cámara de la fase 1 mira en oblicuo, así
+              // que dos piezas con la misma X se dibujan una detrás de otra. Si
+              // además quedan cerca en profundidad, parecen estar en el mismo
+              // sitio (es lo que se reportó con los tres jacks y el USB-C, que son
+              // los más pequeños). El suelo de 1,3 u son ~110 px en pantalla;
+              // con la rejilla vieja (4 filas) eran 0,9 u (~71 px).
+              if (dx < 0.7) {
+                if (dz < worstCol) worstCol = dz
+                if (dz < 1.3) malaCol++
+              }
             }
           }
         }
-        out[stage] = { piezas: defs.length, peor: +worst.toFixed(3), solapados: bad }
+        out[stage] = {
+          piezas: defs.length,
+          peor: +worst.toFixed(3),
+          solapados: bad,
+          peorColumna: Number.isFinite(worstCol) ? +worstCol.toFixed(3) : null,
+          columnaCorta: malaCol,
+        }
       }
       return out
     },
@@ -1055,6 +1271,14 @@ async function traySeparation() {
       `${r.piezas} piezas, separación mínima ${r.peor} u (mínimo ${SPAN}) y ${r.solapados} pares por debajo`,
     )
   }
+  // Además de no solaparse, en la fase 1 (donde están TODAS las piezas a la vez)
+  // ninguna debe esconderse detrás de otra en la misma columna visual.
+  const id = result.identify
+  check(
+    'mesa: en la fase 1 ninguna pieza se esconde en la misma columna visual',
+    id.columnaCorta === 0 && id.peorColumna >= 1.3,
+    `misma columna: separación mínima en profundidad ${id.peorColumna} u (mínimo 1.3) y ${id.columnaCorta} pares por debajo`,
+  )
   // La identificación es la fase que se ve entera sobre la mesa y la que se
   // reportó con las clavijas de audio encima unas de otras. Esta comprobación no
   // es un invariante de comportamiento sino un **suelo de diseño**: fija que la
@@ -1125,6 +1349,17 @@ async function examDrag() {
       }),
     )
   const scoreNumber = (text) => Number(text.replace(/\D/g, ''))
+  const status = () =>
+    page.$eval('.statusbar span:last-child', (el) => el.textContent.trim()).catch(() => '')
+  /** Primer cable de la barra cuyo texto contenga `name` (los índices cambian
+   *  cuando un cable ya colocado sale de la barra). */
+  const barItemByName = async (name) => {
+    for (const item of await page.$$('.connbar__item')) {
+      const text = ((await item.evaluate((el) => el.textContent)) ?? '').trim()
+      if (text.includes(name)) return item
+    }
+    return null
+  }
 
   // Arrastra el cable de la posición i de la barra hasta un punto de la pantalla.
   const dragTo = async (i, point) => {
@@ -1139,9 +1374,12 @@ async function examDrag() {
     await page.mouse.move(point.x, point.y)
     await wait(400)
     const hover = (await store()).hover
+    // Lo que dice la barra de estado mientras el puntero está encima del hueco:
+    // en examen no puede revelar cuál es.
+    const estado = await status()
     await page.mouse.up()
     await wait(700)
-    return { ok: true, hover }
+    return { ok: true, hover, estado }
   }
 
   // El nombre del cable señuelo, tal y como lo llama el catálogo (no se escribe a
@@ -1164,6 +1402,14 @@ async function examDrag() {
   await wait(3500)
   const stage = await page.$eval('.badge--stage', (el) => el.textContent.trim()).catch(() => '<sin>')
   check('examen arrastre: en la fase de conectores', stage === '3. Conectores', stage)
+  if (stage !== '3. Conectores') {
+    // Sin la fase de conectores no hay barra ni puertos que medir y seguir daría un
+    // error de tipo que tumba el arnés entero. Casi siempre es que el import
+    // dinámico del store no es la misma instancia que la de la app por HMR
+    // (reinicia el servidor de desarrollo).
+    await page.close()
+    return
+  }
 
   const labels = await names()
   check(
@@ -1302,21 +1548,818 @@ async function examDrag() {
     afterGoodScore === afterWrongScore,
     `${afterWrongScore} → ${afterGoodScore}`,
   )
+
+  // 3) La barra de estado no da pistas en examen: ni el hueco compatible al pasar
+  //    por encima, ni el nombre de la pieza al seleccionarla (decisión de la
+  //    persona usuaria).
+  check(
+    'examen arrastre: la barra no revela el hueco al pasar por encima',
+    goodDrop.ok && !/Suelta aquí/.test(goodDrop.estado ?? ''),
+    `«${goodDrop.estado ?? ''}»`,
+  )
+  const decoyItem = await barItemByName(decoy.name)
+  check('examen arrastre: el señuelo sigue en la barra para seleccionarlo', !!decoyItem)
+  if (decoyItem) {
+    await decoyItem.click()
+    await wait(400)
+    const estadoSeleccion = await status()
+    check(
+      'examen arrastre: la barra no nombra la pieza seleccionada',
+      estadoSeleccion.length > 0 && !estadoSeleccion.includes(decoy.name),
+      `«${estadoSeleccion}» no debe contener «${decoy.name}»`,
+    )
+  }
   check('examen arrastre: sin errores de página', errors.length === 0, errors.join(' | '))
   await page.close()
 }
 
-await fullGame()
-await examGiveUpGuard()
-await skipStageGuard()
-await unknownBoardGuard()
-await rotationsGuard()
-await unknownBoardNoCalibration()
-await dragGhostVisible()
-await sidePanels()
-await examNoHelp()
-await traySeparation()
-await examDrag()
+/* ---------- 13. El arrastre con el dedo (y un gesto que el navegador cancela) ---------- */
+async function touchDrag() {
+  // Dos cosas que no se habían probado nunca: el arrastre con un dedo (hasta
+  // ahora el arnés solo usaba `page.mouse`) y un gesto que el navegador cancela
+  // a mitad (desplazamiento, zoom, gesto del sistema). Sin atender el
+  // `pointercancel`, la pieza se queda colgada del cursor y el arrastre no
+  // termina nunca: solo el Esc la suelta.
+  //
+  // Se arrastra desde la barra de cables porque es un elemento del DOM con
+  // coordenadas estables: no hace falta proyectar una malla 3D para saber dónde
+  // hay que soltar.
+  //
+  // El gesto se emula por CDP (`Input.dispatchTouchEvent`) y no con
+  // `page.touchscreen`, que no puede emitir la cancelación.
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  await page.setViewport({ width: 1400, height: 900, hasTouch: true })
+  const client = await page.createCDPSession()
+
+  const dispatch = (type, points) =>
+    client.send('Input.dispatchTouchEvent', { type, touchPoints: points })
+  const fingerDown = (p) => dispatch('touchStart', [{ x: p.x, y: p.y }])
+  const fingerMove = (p) => dispatch('touchMove', [{ x: p.x, y: p.y }])
+  const fingerUp = () => dispatch('touchEnd', [])
+  const fingerCancel = () => dispatch('touchCancel', [])
+
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('táctil: menú de modos visible', menuCards.length >= 2, `${menuCards.length}`)
+  if (menuCards.length < 2) {
+    await page.close()
+    return
+  }
+  await menuCards[0].click() // práctica: las zonas iluminadas dicen dónde cae el puerto
+  await page.waitForSelector('.topbar', { timeout: 60000 })
+  await wait(500)
+
+  const skip = () =>
+    page.evaluate(() =>
+      import('/src/store/useGameStore.ts').then((m) => m.useGameStore.getState().skipStage()),
+    )
+  const progress = () =>
+    page.$eval('.progress-label', (el) => el.textContent.trim()).catch(() => '')
+  const status = () =>
+    page.$eval('.statusbar span:last-child', (el) => el.textContent.trim()).catch(() => '')
+  const store = () =>
+    page.evaluate(() =>
+      import('/src/store/useGameStore.ts').then((m) => {
+        const s = m.useGameStore.getState()
+        return { dragging: s.dragging, attempts: s.attempts, placed: Object.keys(s.placed).length }
+      }),
+    )
+
+  await skip()
+  await wait(1200)
+  await skip()
+  await wait(3500)
+  const stage = await page.$eval('.badge--stage', (el) => el.textContent.trim()).catch(() => '<sin>')
+  check('táctil: en la fase de conectores', stage === '3. Conectores', stage)
+
+  // El gesto tiene que ser del juego también de forma PREVENTIVA, no solo
+  // reaccionar al `pointercancel` una vez el navegador ya se lo ha quedado. Se
+  // mira el estilo COMPUTADO y no la hoja de estilos: `OrbitControls`
+  // (three-stdlib) escribe un `touch-action` en línea sobre el canvas al
+  // desmontarse y el estilo en línea gana a una clase, así que la regla estaba
+  // puesta pero era inerte (defecto real encontrado por la verificación
+  // independiente).
+  const gestureOwner = (selector) =>
+    page.$eval(selector, (el) => getComputedStyle(el).touchAction).catch(() => null)
+  const canvasTouch = await gestureOwner('.canvas-host canvas')
+  check(
+    'táctil: el lienzo no deja el gesto al navegador',
+    canvasTouch === 'none',
+    `touch-action: ${canvasTouch}`,
+  )
+  const barTouch = await gestureOwner('.connbar__item')
+  check(
+    'táctil: la barra de cables tampoco deja el gesto',
+    barTouch === 'none',
+    `touch-action: ${barTouch}`,
+  )
+
+  // Elige el primer cable de la barra (un clic normal, que solo selecciona) para
+  // que se iluminen sus puertos y poder leer en pantalla dónde cae uno.
+  const pickCableAndPort = async () => {
+    const item = (await page.$$('.connbar__item'))[0]
+    if (!item) return null
+    await item.click()
+    await wait(400)
+    const box = await item.boundingBox()
+    const port = await page
+      .$eval('.mount-center', (el) => {
+        const r = el.getBoundingClientRect()
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+      })
+      .catch(() => null)
+    if (!box || !port) return null
+    return { bar: { x: box.x + box.width / 2, y: box.y + box.height / 2 }, port }
+  }
+
+  // Arrastra con el dedo desde la barra hasta el puerto y termina como se pida.
+  const dragWithFinger = async (first, finish) => {
+    await fingerDown(first.bar)
+    await wait(150)
+    // La barra solo empieza el arrastre cuando el puntero se mueve de verdad.
+    await fingerMove({ x: first.bar.x + 14, y: first.bar.y - 14 })
+    await wait(250)
+    const started = (await store()).dragging
+    await fingerMove(first.port)
+    await wait(300)
+    await finish()
+    await wait(500)
+    return started
+  }
+
+  // 1) Control positivo: con el dedo, el cable se coloca. Sin esto, la prueba de
+  //    la cancelación pasaría en vacío (si el arrastre táctil no funcionara no
+  //    habría nada que cancelar).
+  const first = await pickCableAndPort()
+  check('táctil: hay un cable y un puerto en pantalla', !!first)
+  if (!first) {
+    await page.close()
+    return
+  }
+  const beforeTouch = { progress: await progress(), ...(await store()) }
+  const startedTouch = await dragWithFinger(first, fingerUp)
+  check('táctil: el dedo empieza el arrastre', startedTouch === true)
+  const afterTouch = { progress: await progress(), ...(await store()) }
+  check(
+    'táctil: el dedo coloca el cable',
+    afterTouch.placed === beforeTouch.placed + 1,
+    `${beforeTouch.placed} → ${afterTouch.placed} colocadas`,
+  )
+  check(
+    'táctil: el progreso avanza con el dedo',
+    afterTouch.progress !== beforeTouch.progress,
+    `${beforeTouch.progress} → ${afterTouch.progress}`,
+  )
+
+  // 2) El gesto cancelado: el navegador se queda con el dedo y el arrastre tiene
+  //    que soltarse sin colocar la pieza y sin contarlo como una suelta.
+  const second = await pickCableAndPort()
+  check('táctil: hay un segundo cable para el caso cancelado', !!second)
+  if (second) {
+    const beforeCancel = { progress: await progress(), status: await status(), ...(await store()) }
+    const startedCancel = await dragWithFinger(second, fingerCancel)
+    const afterCancel = { progress: await progress(), status: await status(), ...(await store()) }
+    check('táctil: el dedo vuelve a empezar el arrastre', startedCancel === true)
+    check(
+      'táctil: el gesto cancelado suelta la pieza (no se queda colgada)',
+      afterCancel.dragging === false,
+      `dragging=${afterCancel.dragging}`,
+    )
+    check(
+      'táctil: el gesto cancelado no coloca nada',
+      afterCancel.placed === beforeCancel.placed,
+      `${beforeCancel.placed} → ${afterCancel.placed} colocadas`,
+    )
+    check(
+      'táctil: el gesto cancelado no cuenta como intento',
+      afterCancel.attempts === beforeCancel.attempts,
+      `${beforeCancel.attempts} → ${afterCancel.attempts}`,
+    )
+    check(
+      'táctil: el progreso no se mueve al cancelar',
+      afterCancel.progress === beforeCancel.progress,
+      `${beforeCancel.progress} → ${afterCancel.progress}`,
+    )
+    check(
+      'táctil: al cancelar, la barra de estado deja de arrastrar',
+      !/Suelta aquí|Lleva la pieza/.test(afterCancel.status),
+      `«${beforeCancel.status}» → «${afterCancel.status}»`,
+    )
+  }
+
+  check('táctil: sin errores de página', errors.length === 0, errors.join(' | '))
+  await page.close()
+}
+
+/* ---------- 14. El resumen del examen dice qué se falló y qué quedó sin colocar ---------- */
+async function examSummary() {
+  // El resumen se construye con datos que antes no existían (`misses`, `unplaced`),
+  // así que la prueba ejerce el camino real: un fallo de verdad y dos «Rendirse»
+  // de verdad, y luego mira la tarjeta final como la mira el alumnado.
+  //
+  //  // Lo que fija: una fila por fallo, que la fila nombra la pieza arrastrada, que
+  // el sitio nombrado es un puerto real de la fase, que la pieza que va ahí no es
+  // la que se arrastró, y que el número de filas sin colocar es el mismo que el
+  // descuento. NO fija la identidad exacta del puerto (eso lo decide el radio de
+  // error del store, y apuntarlo con precisión no es determinista en la chapa) ni
+  // que el resumen sea exclusivo del examen: en práctica no se puede fallar ni
+  // rendirse, así que esa guarda no es observable desde la interfaz.
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('resumen examen: menú de modos visible', menuCards.length >= 2, `${menuCards.length}`)
+  if (menuCards.length < 2) {
+    await page.close()
+    return
+  }
+  await menuCards[0].click() // práctica: las zonas iluminadas dicen dónde cae el puerto
+  await page.waitForSelector('.topbar', { timeout: 60000 })
+  await wait(500)
+
+  // El catálogo se lee del módulo (datos estáticos, no del store), pero si esa
+  // lectura falla —pasa si el servidor se muere a mitad— la sección falla en vez
+  // de tumbar todo el arnés.
+  const catalog = async () => {
+    try {
+      return await page.evaluate(() =>
+        import('/src/data/components.ts').then((m) => {
+          const decoyDef = m.COMPONENTS_BY_STAGE.ports.find((c) => c.decoy)
+          return {
+            decoy: decoyDef ? { name: m.IDENTIFY_LABEL[decoyDef.kind] } : null,
+            portLabels: m.MOUNTS_BY_STAGE.ports.map((mo) => mo.label),
+          }
+        }),
+      )
+    } catch (e) {
+      return { decoy: null, portLabels: [], error: e.message }
+    }
+  }
+  const labels = () => page.$$eval('.connbar__item', (els) => els.map((e) => e.textContent.trim()))
+  const rowsOf = (selector) =>
+    page.$$eval(selector, (els) =>
+      els.map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()),
+    )
+
+  // Arrastra el cable de la barra en la posición `index` hasta un punto de la
+  // pantalla (mismo gesto que §12).
+  const dragTo = async (index, point) => {
+    const item = (await page.$$('.connbar__item'))[index]
+    if (!item) return false
+    const box = await item.boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await wait(250)
+    await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 - 40)
+    await wait(250)
+    await page.mouse.move(point.x, point.y)
+    await wait(400)
+    await page.mouse.up()
+    await wait(700)
+    return true
+  }
+
+  const cat = await catalog()
+  check(
+    'resumen examen: el catálogo tiene un cable señuelo',
+    !!cat.decoy,
+    cat.error ?? 'sin señuelo en el catálogo',
+  )
+  if (!cat.decoy) {
+    await page.close()
+    return
+  }
+
+  // 1) A los conectores se llega pulsando «Saltar fase», como cualquiera.
+  check('resumen examen: se puede saltar de fase', await clickButton(page, 'Saltar fase'))
+  await wait(1500)
+  check('resumen examen: se puede saltar otra vez', await clickButton(page, 'Saltar fase'))
+  await wait(3500)
+  const stage = await page.$eval('.badge--stage', (el) => el.textContent.trim()).catch(() => '<sin>')
+  check('resumen examen: en la fase de conectores', stage === '3. Conectores', stage)
+
+  // 1) Se lee dónde cae un puerto con un cable NORMAL seleccionado (las zonas
+  //    iluminadas solo existen en práctica y solo para huecos que encajan), y se
+  //    suelta al aire: en la chapa los puertos están tan juntos que soltar «lejos»
+  //    puede colocar algo, y la partida se reinicia justo después.
+  const names = await labels()
+  const iDecoy = names.findIndex((n) => n === cat.decoy?.name)
+  const iNormal = names.findIndex((n) => n !== cat.decoy?.name)
+  check(
+    'resumen examen: hay un cable normal y uno señuelo',
+    iDecoy >= 0 && iNormal >= 0 && iDecoy !== iNormal,
+    `señuelo en ${iDecoy}, normal en ${iNormal}`,
+  )
+  if (iDecoy < 0 || iNormal < 0) {
+    await page.close()
+    return
+  }
+  const item = (await page.$$('.connbar__item'))[iNormal]
+  const box = await item.boundingBox()
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await wait(250)
+  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 - 40)
+  await wait(400)
+  const port = await page
+    .$eval('.mount-center', (el) => {
+      const r = el.getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    })
+    .catch(() => null)
+  await page.mouse.move(1200, 120)
+  await wait(250)
+  await page.mouse.up()
+  await wait(600)
+  check('resumen examen: el puerto está en pantalla', !!port)
+  if (!port) {
+    await page.close()
+    return
+  }
+
+  // 2) Partida nueva en EXAMEN desde el menú. Al empezar otra partida los puertos
+  //    y la cámara de la fase no cambian, así que las coordenadas de arriba
+  //    siguen valiendo. Se llega a los conectores rindiendo las dos fases
+  //    anteriores: eso deja además piezas sin colocar, que es la mitad del resumen.
+  check('resumen examen: se puede volver al menú', await clickButton(page, 'Menú'))
+  await wait(1000)
+  const examCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('resumen examen: el menú ofrece los dos modos', examCards.length >= 2, `${examCards.length}`)
+  if (examCards.length < 2) {
+    await page.close()
+    return
+  }
+  await examCards[1].click() // examen
+  await page.waitForSelector('.badge--exam', { timeout: 60000 })
+  await wait(1200)
+  check('resumen examen: se puede rendir una fase', await clickButton(page, 'Rendirse'))
+  await wait(1300)
+  check('resumen examen: se puede rendir otra fase', await clickButton(page, 'Rendirse'))
+  await wait(3500)
+  const examStage = await page.$eval('.badge--stage', (el) => el.textContent.trim()).catch(() => '<sin>')
+  check('resumen examen: el examen llega a los conectores', examStage === '3. Conectores', examStage)
+
+  // 3) Un fallo de verdad: el señuelo sobre un puerto real.
+  const dropped = await dragTo(iDecoy, port)
+  await wait(500)
+  check('resumen examen: el fallo llegó a soltarse', dropped)
+
+  // 4) Rendirse en las dos fases que quedan para terminar.
+  check('resumen examen: se puede rendir los conectores', await clickButton(page, 'Rendirse'))
+  await wait(1300)
+  check('resumen examen: se puede rendir la última fase', await clickButton(page, 'Rendirse'))
+  await wait(1300)
+
+  // Lo que ve el alumnado: el título de la tarjeta y sus contadores.
+  const title = await page
+    .$eval('.overlay .card h1', (el) => el.textContent.trim())
+    .catch(() => '')
+  check('resumen examen: la partida terminó', title === 'Examen terminado', `«${title}»`)
+  const boxes = await page.$$eval('.score-box', (els) =>
+    Object.fromEntries(
+      els.map((el) => [
+        (el.querySelector('.lbl')?.textContent ?? '').trim(),
+        Number(((el.querySelector('.val')?.textContent ?? '').replace(/\D/g, '')) || 0),
+      ]),
+    ),
+  )
+  check('resumen examen: el fallo se contó', boxes.Fallos >= 1, JSON.stringify(boxes))
+  check('resumen examen: hay piezas sin colocar', boxes['Sin colocar'] >= 1, JSON.stringify(boxes))
+
+  const missRows = await rowsOf('.finish-review--misses .finish-review__list li')
+  const unplacedRows = await rowsOf('.finish-review--unplaced .finish-review__list li')
+  check('resumen examen: el resumen final está en pantalla', !!(await page.$('.finish-review')))
+  check(
+    'resumen examen: hay una fila por fallo',
+    missRows.length === boxes.Fallos && missRows.length >= 1,
+    `${missRows.length} filas / ${boxes.Fallos} fallos`,
+  )
+  check(
+    'resumen examen: la fila nombra la pieza que se arrastró',
+    !!cat.decoy && (missRows[0] ?? '').includes(`«${cat.decoy.name}»`),
+    `«${missRows[0] ?? ''}»`,
+  )
+  check(
+    'resumen examen: la fila dice qué iba ahí',
+    /→ ahí va «.+»/.test(missRows[0] ?? ''),
+    `«${missRows[0] ?? ''}»`,
+  )
+  const dragged = (missRows[0] ?? '').match(/Pusiste «(.+?)»/)?.[1] ?? ''
+  const correct = (missRows[0] ?? '').match(/→ ahí va «(.+?)»/)?.[1] ?? ''
+  check(
+    'resumen examen: lo que iba ahí no es lo que se arrastró',
+    !!dragged && !!correct && dragged !== correct,
+    `«${dragged}» → «${correct}»`,
+  )
+  check(
+    'resumen examen: el sitio nombrado es un puerto de la fase',
+    cat.portLabels.some((label) => (missRows[0] ?? '').includes(`«${label}»`)),
+    `«${missRows[0] ?? ''}»`,
+  )
+  check(
+    'resumen examen: hay una fila por pieza sin colocar',
+    unplacedRows.length === boxes['Sin colocar'],
+    `${unplacedRows.length} filas / ${boxes['Sin colocar']} sin colocar`,
+  )
+  // El cable que sobra no encaja en ningún puerto, así que solo puede quedarse
+  // sin colocar en la identificación: allí TODAS las piezas se colocan en su
+  // cartel y por eso cuentan, incluidos los señuelos (es la regla de
+  // `STAGE_STEPS`, no un descuido).
+  const decoyRows = unplacedRows.filter((row) => row.includes(cat.decoy.name))
+  check(
+    'resumen examen: el cable que sobra solo falta en la identificación',
+    decoyRows.length >= 1 && decoyRows.every((row) => row.includes('identificación')),
+    decoyRows.slice(0, 4).join(' | ') || 'no aparece',
+  )
+  check(
+    'resumen examen: cada pieza sin colocar dice en qué fase faltaba',
+    unplacedRows.length > 0 &&
+      unplacedRows.every((row) =>
+        /\((identificación|sobre la placa|conectores|periféricos)\)/.test(row),
+      ),
+    unplacedRows.slice(0, 3).join(' | '),
+  )
+
+  check('resumen examen: sin errores de página', errors.length === 0, errors.join(' | '))
+  await page.close()
+}
+
+/* ---------- 15. La carga del modelo pesado se avisa con una barra ---------- */
+async function loadingBar() {
+  // El `.glb` de la placa pesa 18,8 MB (el mayor, `motherboard-01`), así que en
+  // el aula no llega de golpe. Hasta ahora lo único que se veía era el
+  // placeholder procedural, que aparecía y luego se sustituía sin explicar nada.
+  //
+  // La red se estrangula DESPUÉS de cargar la app (si no, cargar el propio
+  // programa tardaría minutos) para que la carga del modelo dure lo suficiente
+  // como para mirarla en vez de adivinarla.
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const client = await page.createCDPSession()
+  await client.send('Network.enable')
+
+  // Control negativo: en el menú no se carga ningún modelo, así que no hay barra.
+  check('carga: en el menú no hay barra de carga', !(await page.$('.loadingbar')))
+
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('carga: menú de modos visible', menuCards.length >= 2, `${menuCards.length}`)
+  if (menuCards.length < 2) {
+    await page.close()
+    return
+  }
+
+  await client.send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: 40,
+    downloadThroughput: 1500 * 1024,
+    uploadThroughput: 300 * 1024,
+  })
+
+  await menuCards[0].click() // práctica
+  await page.waitForSelector('.topbar', { timeout: 60000 })
+  // La fase de la placa es la que monta el modelo grande (no hay preloads). Se
+  // salta con el botón, no con el store: así el aviso no depende de qué
+  // instancia del módulo tenga la app bajo HMR.
+  check('carga: se puede saltar a la fase de la placa', await clickButton(page, 'Saltar fase'))
+
+  const reading = () =>
+    page
+      .$eval('.loadingbar', (bar) => {
+        const fill = bar.querySelector('.loadingbar__fill')
+        return {
+          label: bar.querySelector('.loadingbar__label')?.textContent?.trim() ?? '',
+          pct: bar.querySelector('.loadingbar__pct')?.textContent?.trim() ?? '',
+          ancho: fill ? fill.style.width : '',
+          pointerEvents: getComputedStyle(bar).pointerEvents,
+        }
+      })
+      .catch(() => null)
+
+  let bar = null
+  for (let t = 0; t < 80 && !bar; t++) {
+    await wait(250)
+    bar = await reading()
+  }
+  check('carga: la barra aparece mientras llega el modelo', !!bar, JSON.stringify(bar))
+  if (bar) {
+    check('carga: la barra dice qué está cargando', bar.label.startsWith('Cargando'), `«${bar.label}»`)
+    check('carga: la barra dice un porcentaje', /^\d+ %$/.test(bar.pct), `«${bar.pct}»`)
+    check(
+      'carga: la barra se rellena con ese porcentaje',
+      /^\d+(\.\d+)?%$/.test(bar.ancho),
+      `ancho «${bar.ancho}» con ${bar.pct}`,
+    )
+    check(
+      'carga: la barra no bloquea el juego',
+      bar.pointerEvents === 'none',
+      `pointer-events: ${bar.pointerEvents}`,
+    )
+  }
+
+  // Sin estrangulamiento la carga termina, y la barra se va: no se queda pegada.
+  await client.send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: 0,
+    downloadThroughput: -1,
+    uploadThroughput: -1,
+  })
+  let gone = false
+  for (let t = 0; t < 120 && !gone; t++) {
+    await wait(250)
+    gone = !(await page.$('.loadingbar'))
+  }
+  check('carga: al terminar, la barra desaparece', gone)
+  check('carga: sin errores de página', errors.length === 0, errors.join(' | '))
+  await page.close()
+}
+
+/* ---------- 16. El cartel de fase explica qué hacer al empezarla ---------- */
+async function stageBanner() {
+  // En práctica, al empezar cada fase (también la primera) sale el cartel con lo
+  // que hay que hacer; en examen no sale nunca: no da explicaciones.
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('cartel de fase: menú de modos visible', menuCards.length >= 2, `${menuCards.length}`)
+  if (menuCards.length < 2) {
+    await page.close()
+    return
+  }
+  const lee = () =>
+    page
+      .$eval('.stage-banner', (el) => ({
+        kicker: (el.querySelector('.stage-banner__kicker')?.textContent ?? '').trim(),
+        titulo: (el.querySelector('h2')?.textContent ?? '').trim(),
+        texto: (el.querySelector('p')?.textContent ?? '').trim(),
+      }))
+      .catch(() => null)
+
+  await menuCards[0].click() // práctica
+  await page.waitForSelector('.topbar', { timeout: 60000 })
+  await wait(700)
+  const esperado = await page.evaluate(async () => {
+    const m = await import('/src/data/stages.ts')
+    return m.STAGES.map((s) => ({ id: s.id, titulo: s.title, texto: s.hint }))
+  })
+  const primero = await lee()
+  check(
+    'cartel de fase: al empezar la partida explica la primera fase',
+    !!primero && primero.kicker === 'Fase 1 de 4' && primero.titulo === `1. ${esperado[0].titulo}`,
+    JSON.stringify(primero),
+  )
+  check(
+    'cartel de fase: el texto es el de esa fase',
+    !!primero && primero.texto === esperado[0].texto,
+    `«${primero?.texto ?? ''}»`,
+  )
+
+  let ido = false
+  for (let t = 0; t < 24 && !ido; t++) {
+    await wait(250)
+    ido = !(await page.$('.stage-banner'))
+  }
+  check('cartel de fase: se quita solo', ido)
+
+  check('cartel de fase: se puede saltar de fase', await clickButton(page, 'Saltar fase'))
+  await wait(800)
+  const segunda = await lee()
+  check(
+    'cartel de fase: al saltar explica la fase nueva (y no dice «completada»)',
+    !!segunda && segunda.kicker === 'Fase 2 de 4' && segunda.titulo === `2. ${esperado[1].titulo}`,
+    JSON.stringify(segunda),
+  )
+  check('cartel de fase: sin errores de página', errors.length === 0, errors.join(' | '))
+  await page.close()
+
+  // En examen no aparece nunca.
+  const examen = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const cartas = await examen.page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => examen.page.$$('button.mode-card'))
+    .catch(() => [])
+  check('cartel de fase: el examen arranca', cartas.length >= 2, `${cartas.length} tarjetas`)
+  if (cartas.length >= 2) {
+    await cartas[1].click()
+    await examen.page.waitForSelector('.badge--exam', { timeout: 60000 })
+    await wait(1500)
+    check('cartel de fase: en examen no aparece', !(await examen.page.$('.stage-banner')))
+  }
+  check('cartel de fase: examen sin errores', examen.errors.length === 0, examen.errors.join(' | '))
+  await examen.page.close()
+}
+
+/* ---------- 17. La pieza seleccionada se ve ampliada en la fase 1 ---------- */
+async function componentZoom() {
+  // En la fase 1 están todas las piezas sobre la mesa y los conectores se ven muy
+  // pequeños: al seleccionar una, sale una ventanita con la pieza ampliada (el
+  // PNG del conector si existe, si no una vista 3D de cerca). En examen el panel
+  // también sale —la forma ayuda— pero SIN el nombre: nombrarla es una pista.
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const menuCards = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('zoom: menú de modos visible', menuCards.length >= 2, `${menuCards.length}`)
+  if (menuCards.length < 2) {
+    await page.close()
+    return
+  }
+  const lee = () =>
+    page
+      .$eval('.zoom', (el) => ({
+        img: !!el.querySelector('.zoom__img'),
+        canvas: !!el.querySelector('canvas'),
+        nombre: (el.querySelector('.zoom__name')?.textContent ?? '').trim(),
+        pointerEvents: getComputedStyle(el).pointerEvents,
+      }))
+      .catch(() => null)
+  const elegir = async (texto) => {
+    for (const item of await page.$$('button.comp-item')) {
+      const name = ((await item.evaluate((el) => el.querySelector('.name')?.textContent)) ?? '').trim()
+      if (!name.includes(texto)) continue
+      await item.click()
+      await wait(700)
+      return name
+    }
+    return null
+  }
+
+  await menuCards[0].click() // práctica
+  await page.waitForSelector('.topbar', { timeout: 60000 })
+  await openSidePanel(page)
+  await wait(400)
+  check('zoom: sin pieza seleccionada no hay panel', !(await page.$('.zoom')))
+
+  const conPng = await elegir('Cable PS/2')
+  const z1 = await lee()
+  check('zoom: al seleccionar un conector sale el panel', !!z1, JSON.stringify(z1) ?? 'sin panel')
+  check('zoom: el conector se enseña con su imagen nítida', !!z1?.img, JSON.stringify(z1))
+  check(
+    'zoom: en práctica el panel dice el nombre',
+    !!conPng && z1?.nombre === conPng,
+    `«${z1?.nombre ?? ''}» frente a «${conPng ?? ''}»`,
+  )
+  check('zoom: el panel no bloquea los clics', z1?.pointerEvents === 'none', `pointer-events: ${z1?.pointerEvents}`)
+
+  await elegir('CPU')
+  const z2 = await lee()
+  check(
+    'zoom: una pieza sin imagen se enseña en 3D',
+    !!z2?.canvas && z2?.img === false,
+    JSON.stringify(z2),
+  )
+
+  check('zoom: se puede saltar de fase', await clickButton(page, 'Saltar fase'))
+  await wait(1200)
+  await elegir('CPU')
+  check('zoom: fuera de la fase 1 no sale el panel', !(await page.$('.zoom')))
+  check('zoom: sin errores de página', errors.length === 0, errors.join(' | '))
+  await page.close()
+
+  // En examen: se coge una pieza de la mesa (no hay lista) y el panel sale sin
+  // nombre. La posición de la pieza en pantalla se calcula con la cámara de la
+  // fase, sin tocar el store.
+  const examen = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const cartas = await examen.page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => examen.page.$$('button.mode-card'))
+    .catch(() => [])
+  check('zoom: el examen arranca', cartas.length >= 2, `${cartas.length} tarjetas`)
+  if (cartas.length < 2) {
+    await examen.page.close()
+    return
+  }
+  await cartas[1].click()
+  await examen.page.waitForSelector('.badge--exam', { timeout: 60000 })
+  await wait(1500)
+  check('zoom: en examen no hay panel sin coger nada', !(await examen.page.$('.zoom')))
+
+  const punto = await examen.page.evaluate(async () => {
+    const c = await import('/src/data/components.ts')
+    const st = await import('/src/data/stages.ts')
+    const stage = st.STAGES[0]
+    const def = [...c.COMPONENTS_BY_STAGE.identify].sort((a, b) => b.size - a.size)[0]
+    const [px, py, pz] = stage.camera.position
+    const [tx, ty, tz] = stage.camera.target
+    const n = Math.hypot(tx - px, ty - py, tz - pz)
+    const f = [(tx - px) / n, (ty - py) / n, (tz - pz) / n]
+    const r = [-f[2], 0, f[0]]
+    const nr = Math.hypot(...r)
+    r[0] /= nr
+    r[2] /= nr
+    const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]]
+    const d = [
+      def.identifyPos[0] - px,
+      // OJO: la pieza dibujada no mide `def.size`, sino como mucho 0,75
+      // (`trayScaleFor` la encoge). Apuntar a `def.size / 2` cae muy por encima.
+      stage.tray.surfaceY + Math.min(def.size, 0.75) / 2 - py,
+      def.identifyPos[1] - pz,
+    ]
+    const xv = d[0] * r[0] + d[1] * r[1] + d[2] * r[2]
+    const yv = d[0] * u[0] + d[1] * u[1] + d[2] * u[2]
+    const zv = d[0] * f[0] + d[1] * f[1] + d[2] * f[2]
+    const tan = Math.tan(((45 * Math.PI) / 180) / 2)
+    const W = window.innerWidth
+    const H = window.innerHeight
+    return {
+      id: def.id,
+      size: def.size,
+      x: ((xv / (zv * tan * (W / H))) + 1) / 2 * W,
+      y: (1 - yv / (zv * tan)) / 2 * H,
+    }
+  })
+  let cogida = false
+  for (const [dx, dy] of [
+    [0, 0],
+    [0, -10],
+    [0, 10],
+    [-10, 0],
+    [10, 0],
+    [-14, -14],
+    [14, 14],
+    [0, -20],
+    [0, 20],
+  ]) {
+    await examen.page.mouse.click(punto.x + dx, punto.y + dy)
+    await wait(500)
+    if (await examen.page.$('.zoom')) {
+      cogida = true
+      break
+    }
+  }
+  check('zoom: en examen sale el panel al coger la pieza', cogida, JSON.stringify(punto))
+  if (cogida) {
+    const z3 = await examen.page.$eval('.zoom', (el) => ({
+      img: !!el.querySelector('.zoom__img'),
+      canvas: !!el.querySelector('canvas'),
+      tieneNombre: !!el.querySelector('.zoom__name'),
+      texto: (el.textContent ?? '').trim(),
+    }))
+    check(
+      'zoom: en examen el panel NO dice el nombre de la pieza',
+      z3.tieneNombre === false && z3.texto === '',
+      JSON.stringify(z3),
+    )
+    check('zoom: en examen la pieza se enseña igual (3D o imagen)', !!z3.canvas || !!z3.img, JSON.stringify(z3))
+  }
+  check('zoom: examen sin errores de página', examen.errors.length === 0, examen.errors.join(' | '))
+  await examen.page.close()
+}
+
+/**
+ * Secciones de la pasada, en orden. `ONLY=examSummary,loadingBar` acota la
+ * ejecución a las nombradas (para falsar un cambio sin pagar la pasada entera).
+ */
+const SECTIONS = [
+  ['fullGame', fullGame],
+  ['examGiveUpGuard', examGiveUpGuard],
+  ['skipStageGuard', skipStageGuard],
+  ['unknownBoardGuard', unknownBoardGuard],
+  ['rotationsGuard', rotationsGuard],
+  ['unknownBoardNoCalibration', unknownBoardNoCalibration],
+  ['dragGhostVisible', dragGhostVisible],
+  ['sidePanels', sidePanels],
+  ['examNoHelp', examNoHelp],
+  ['traySeparation', traySeparation],
+  ['examDrag', examDrag],
+  ['examSummary', examSummary],
+  ['touchDrag', touchDrag],
+  ['loadingBar', loadingBar],
+  ['stageBanner', stageBanner],
+  ['componentZoom', componentZoom],
+]
+
+const ONLY = process.env.ONLY
+  ? process.env.ONLY.split(',').map((name) => name.trim())
+  : null
+
+// Un nombre que no existe —una errata o una mayúscula cambiada— dejaría la
+// pasada en vacío y aun así diría «TODO OK»: se para y se dicen cuáles hay (lo
+// señaló la revisión nativa: R4-001).
+const unknown = ONLY
+  ? ONLY.filter((name) => !SECTIONS.some(([section]) => section === name))
+  : []
+if (unknown.length > 0) {
+  console.error(
+    `ONLY: no existe la sección «${unknown.join(', ')}». Hay: ${SECTIONS.map(([n]) => n).join(', ')}`,
+  )
+  process.exit(1)
+}
+
+for (const [name, run] of SECTIONS) {
+  if (ONLY && !ONLY.includes(name)) continue
+  await run()
+}
 
 await browser.close()
 console.log(failures === 0 ? '\nTODO OK' : `\n${failures} comprobaciones fallidas`)

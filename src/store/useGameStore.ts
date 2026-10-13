@@ -5,9 +5,26 @@ import {
   STAGE_STEPS,
   TOTAL_STEPS,
   shuffleLayout,
+  stageComponents,
 } from '../data/components'
 import { STAGES } from '../data/stages'
 import type { GameMode, MountPoint, Phase, Stage, StageId, Vec3 } from '../types'
+
+/** Un fallo del examen: la pieza que se arrastró y el hueco donde se soltó. */
+export interface ExamMiss {
+  componentId: string
+  mountId: string
+}
+
+/**
+ * Pieza que quedó sin colocar al rendirse, con la fase en la que faltaba: la
+ * misma pieza puede faltar en dos fases (identificarla y montarla), y el resumen
+ * tiene que poder decirlo sin repetirse sin sentido.
+ */
+export interface UnplacedPiece {
+  stage: StageId
+  componentId: string
+}
 
 interface State {
   mode: GameMode
@@ -23,9 +40,15 @@ interface State {
   /** Piezas que se dejaron sin colocar al rendirse (solo examen). */
   forfeited: number
   wrongFlash: string | null
+  /** Fallos del examen, en orden, para el resumen final. */
+  misses: ExamMiss[]
+  /** Piezas que quedaron sin colocar al rendirse, para el resumen final. */
+  unplaced: UnplacedPiece[]
   /** Marca de tiempo del último cambio de fase (para el aviso). */
   stageChangedAt: number
   lastCompletedStage: StageId | null
+  /** Cómo se llegó a la fase actual: completando la anterior, saltándola o empezando. */
+  lastAdvance: 'completed' | 'skipped' | null
   startedAt: number
   finishedAt: number | null
 
@@ -104,6 +127,7 @@ function advanceAfterPlace(placed: Record<string, string>, stageIndex: number) {
     hoverMountId: null,
     stageChangedAt: Date.now(),
     lastCompletedStage: STAGES[stageIndex].id,
+    lastAdvance: 'completed' as const,
   }
 }
 
@@ -120,8 +144,11 @@ export const useGameStore = create<State>((set, get) => ({
   attempts: 0,
   forfeited: 0,
   wrongFlash: null,
+  misses: [],
+  unplaced: [],
   stageChangedAt: 0,
   lastCompletedStage: null,
+  lastAdvance: null,
   startedAt: 0,
   finishedAt: null,
 
@@ -139,8 +166,11 @@ export const useGameStore = create<State>((set, get) => ({
       attempts: 0,
       forfeited: 0,
       wrongFlash: null,
+      misses: [],
+      unplaced: [],
       stageChangedAt: 0,
       lastCompletedStage: null,
+      lastAdvance: null,
       startedAt: Date.now(),
       finishedAt: null,
     })
@@ -159,8 +189,11 @@ export const useGameStore = create<State>((set, get) => ({
       attempts: 0,
       forfeited: 0,
       wrongFlash: null,
+      misses: [],
+      unplaced: [],
       stageChangedAt: 0,
       lastCompletedStage: null,
+      lastAdvance: null,
       startedAt: Date.now(),
       finishedAt: null,
       mode: s.mode,
@@ -185,6 +218,7 @@ export const useGameStore = create<State>((set, get) => ({
       wrongFlash: null,
       stageChangedAt: Date.now(),
       lastCompletedStage: STAGES[stageIndex].id,
+      lastAdvance: 'skipped' as const,
     })
   },
 
@@ -196,13 +230,19 @@ export const useGameStore = create<State>((set, get) => ({
     // lo mismo). Guardia silenciosa: sin confirmación visible.
     if (mode !== 'exam' || phase !== 'building' || finishedAt !== null) return
     if (Date.now() - stageChangedAt < 500) return
-    const { placed, stageIndex, forfeited } = get()
+    const { placed, stageIndex, forfeited, unplaced } = get()
     const stage = STAGES[stageIndex]
-    const filled = placedInStage(placed, stageIndex).size
-    const remaining = Math.max(0, STAGE_STEPS[stage.id] - filled)
+    const done = placedInStage(placed, stageIndex)
+    // La lista de lo que falta y su recuento salen de la misma fuente, así que no
+    // pueden discrepar.
+    const remaining = stageComponents(stage.id).filter((c) => !done.has(c.id))
     const isLast = stageIndex >= STAGES.length - 1
     set({
-      forfeited: forfeited + remaining,
+      forfeited: forfeited + remaining.length,
+      unplaced: [
+        ...unplaced,
+        ...remaining.map((c) => ({ stage: stage.id, componentId: c.id })),
+      ],
       selectedId: null,
       dragging: false,
       hoverMountId: null,
@@ -213,6 +253,7 @@ export const useGameStore = create<State>((set, get) => ({
             stageIndex: stageIndex + 1,
             stageChangedAt: Date.now(),
             lastCompletedStage: stage.id,
+            lastAdvance: 'skipped' as const,
           }),
     })
   },
@@ -278,11 +319,16 @@ export const useGameStore = create<State>((set, get) => ({
       .filter((c) => c.d <= stage.drop.wrongRadius)
       .sort((a, b) => a.d - b.d)
 
+    const failed = mode === 'exam' && wrong.length > 0
     set({
       dragging: false,
       hoverMountId: null,
       attempts: attempts + 1,
-      errors: mode === 'exam' && wrong.length > 0 ? get().errors + 1 : get().errors,
+      errors: failed ? get().errors + 1 : get().errors,
+      // El resumen final necesita saber qué se falló y dónde, no solo cuántos.
+      misses: failed
+        ? [...get().misses, { componentId: selectedId, mountId: wrong[0].mount.id }]
+        : get().misses,
       wrongFlash: wrong.length > 0 ? wrong[0].mount.id : null,
     })
   },

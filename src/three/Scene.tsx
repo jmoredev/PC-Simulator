@@ -358,11 +358,18 @@ function DragController({ stage }: { stage: Stage }) {
       else useGameStore.getState().updateDrag(hit.x, hit.z)
     }
     const onUp = () => useGameStore.getState().endDrag()
+    // El navegador puede quedarse con el gesto (desplazamiento, zoom, gesto del
+    // sistema) y cancelar el puntero a mitad: sin atender esa cancelación la
+    // pieza se queda colgada del cursor y el arrastre nunca termina. Cancelar
+    // suelta la pieza sin colocarla y sin contar fallo, como el Esc.
+    const onCancel = () => useGameStore.getState().cancelDrag()
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
     }
   }, [dragging, camera, gl, raycaster, stage])
 

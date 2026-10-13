@@ -38,9 +38,18 @@ export const STAGES: Stage[] = [
     // Rejilla de la mesa: dos piezas contiguas nunca pueden quedar más juntas de
     // lo que ocupan (0,75). El desplazamiento aleatorio se deriva de estas
     // separaciones (`trayJitter`), así que ensanchar la rejilla las separa.
+    //
+    // 6 columnas × 3 filas = 18 celdas para 18 piezas, con las filas a 2,1 u: dos
+    // piezas de la misma columna —que la cámara oblicua dibuja una detrás de
+    // otra— quedan a 1,4 u en profundidad (~110 px en pantalla) en vez de a 0,9.
+    // Eran justo los conectores pequeños con latiguillo (los tres jacks y el
+    // USB-C) los que parecían estar en el mismo sitio. Las columnas se quedan en
+    // ±4 y la fila de delante en 4,4 a propósito: más ancho o más profundo saca
+    // las piezas de la mesa visible, las mete debajo de los paneles laterales o
+    // las corta en el borde inferior (medido con la proyección de la cámara).
     tray: {
       cols: [-4, -2.4, -0.8, 0.8, 2.4, 4],
-      rows: [0.6, 1.85, 3.1, 4.35],
+      rows: [0.2, 2.3, 4.4],
       surfaceY: 0.11,
     },
     camera: { position: [0, 8.6, 9.2], target: [0, 0, 0.7] },

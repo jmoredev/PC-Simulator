@@ -89,7 +89,7 @@ PC-Simulator/
 │   │   ├── CalibrationPicker.tsx # captura de puntos en modo calibración
 │   │   ├── DebugGrid.tsx    # rejilla de coordenadas (?debug=1)
 │   │   └── primitives.tsx   # helpers Box / Cyl / Ball
-│   ├── ui/                  # menú, lista por fases, ficha, progreso, resultados, calibración y leyenda
+│   ├── ui/                  # menú, lista por fases, ficha, progreso, resultados, calibración, aviso de carga y leyenda
 │   ├── types.ts             # tipos compartidos (Stage, MountPoint, ComponentDef…)
 │   ├── App.tsx              # lienzo 3D + capas de interfaz
 │   ├── main.tsx             # punto de entrada
@@ -186,6 +186,13 @@ Reglas de layout:
 | 49 | **Publicado en GitHub Pages como sitio de proyecto** (`deploy-pages.yml`) | La web pública quedará en `https://jmoredev.github.io/PC-Simulator/` (subruta de sitio de proyecto) una vez activado Pages en el repositorio: el `base` de Vite sale de `BASE_PATH`, que el workflow exporta como `/PC-Simulator/` (sin esa variable todo queda en `/` para desarrollo y preview). Los pull requests hacia `main` solo compilan; publicar lo hace únicamente un push a `main` (el job de despliegue exige además `github.ref == refs/heads/main`, así que una ejecución manual sobre otra rama tampoco publica). Los modelos de placa se publican **tal cual** precisamente para no mover la calibración (`mounts`, `rear`, `ports` se midieron sobre esos `.glb` exactos). |
 | 50 | **Los paneles laterales se pliegan** y la partida arranca con la lista recogida y la ficha abierta | La lista de fases ocupaba 300 px de lienzo para una información que solo hace falta al elegir pieza, y la ficha se consulta a cada rato: de ahí el reparto por defecto. El estado **no se recuerda** entre partidas, así que cada partida arranca en el mismo punto (y el arnés puede afirmarlo). Plegado, el panel queda como una franja fina con su botón (`◂`/`▸`) y su contenido no se monta siquiera: nada invisible que atrape el foco. No cambia el tamaño del lienzo, porque los paneles son capas flotantes sobre el canvas. |
 | 51 | **El examen no da ninguna ayuda** | En examen no se montan los paneles laterales: la lista de fases es el nombre de cada pieza y la ficha es la explicación, así que los dos son la respuesta (decisión 14). Y el imán del arrastre se limita a práctica: de todos los huecos, aquel al que se pega la pieza al acercarla es el correcto, así que el fantasma sigue al puntero (`ghostSnaps` en `src/three/dragGhost.ts`) y solo se pone verde cuando el imán está activo. El hueco candidato se calcula igual, así que soltar coloca y falla exactamente como antes. La leyenda de controles y el aviso de la barra de estado se quedan: no son la respuesta. Consecuencia asumida: en examen se juega arrastrando las piezas de la mesa, porque el «clic y clic» necesita la lista. |
+| 52 | **El arrastre también termina cuando el navegador cancela el gesto** | Las dos superficies desde las que se empieza a arrastrar (el lienzo 3D en `Scene.tsx` y la barra de cables en `ConnectorBar.tsx`) escuchaban `pointermove`/`pointerup` en `window` pero no `pointercancel`, así que un gesto que el navegador se queda —desplazamiento, zoom o gesto del sistema en una pantalla táctil— dejaba la pieza colgada del cursor y solo se salía con `Esc`. Además, el lienzo y la barra llevan `touch-action: none`, que es lo que impide que el navegador se quede el gesto de entrada. La cancelación **cancela**, no suelta: no coloca la pieza y no cuenta intento ni fallo, igual que `Esc`. Consecuencia: en Chromebooks táctiles (o convertibles) el arrastre es el mismo gesto que con ratón. |
+| 53 | **El resumen del examen dice qué se falló y qué quedó sin colocar** | Una nota sobre 100 no enseña nada: `FinishModal` solo mostraba contadores. Ahora el store anota cada fallo con la pieza arrastrada y el hueco señalado (`misses`) y las piezas que quedaron sin poner al rendirse (`unplaced`). El recuento y la lista de lo que falta salen de la **misma** función (`stageComponents()` en `src/data/components.ts`, de la que también se deriva `STAGE_STEPS`), así que no pueden discrepar, y el fallo se anota bajo la **misma** condición que lo cuenta, así que `errors` es siempre el número de filas. Cada fila dice la pieza, el hueco y cuál iba ahí, que es el momento didáctico; las piezas sin colocar llevan además **la fase en la que faltaban**, porque la misma pieza puede faltar dos veces en una partida (identificarla y montarla): sin eso la lista salía repetida y sin explicación, y con la fase la clave de cada fila es única. El resumen es solo del examen (en práctica no hay fallos que anotar) y no cambia la puntuación. |
+| 54 | **Los modelos que tardan se avisan con una barra, sin bloquear** | El `.glb` de la placa pesa hasta 18,8 MB (medido: `motherboard-01` son 652.238 vértices y sus texturas, 0,08 MB, así que el peso es geometría ya cuantizada, no texturas) y con placa aleatoria por carga una de cada tres partidas lo descarga al empezar la fase 2. Antes lo único que se veía era el placeholder procedural, que aparecía y luego se sustituía sin explicar nada. La barra usa `useProgress` de drei sobre el gestor de carga de three, va arriba bajo la barra superior y con `pointer-events: none`, así que no bloquea el juego: se puede seguir mirando la escena. Desaparece al terminar porque `FileLoader` llama a `itemEnd()` en su `.finally()`, también cuando el modelo falla. |
+| 55 | **La mesa de la identificación se reparte en 6 columnas × 3 filas** (filas a 2,1 u) | En la fase 1 están las 18 piezas a la vez y la cámara mira en oblicuo, así que dos piezas con la misma X se dibujan **una detrás de otra**: con la rejilla anterior (4 filas a 1,25) la separación en profundidad dentro de una «misma columna visual» era 0,9 u (~71 px) y en 200 barajados había **1.628 pares** por debajo del suelo. Con 3 filas a 2,1 u son 1,42 u (~110 px) y 0 pares. El ancho se queda en ±4 y la fila de delante en 4,4 **a propósito, medido con la proyección de la cámara**: 9 columnas hasta ±5,2 sacaban piezas de la mesa visible (x≈118 px) y las metían detrás de la ficha (x≈1190-1282), y una fila en 5,8 las cortaba en el borde inferior. El arnés lo fija con el check de «misma columna visual» (§11), que hoy falla si se vuelve a las 4 filas. |
+| 56 | **En examen la barra de estado no da el nombre de la pieza ni el del hueco** | El examen consiste en reconocer las piezas: «CPU seleccionada» o «Suelta aquí: Zócalo de la CPU» era la respuesta (decisión 51). En práctica se sigue diciendo todo; en examen quedan solo las instrucciones («Pieza seleccionada. Arrástrala hasta su sitio.» y «Lleva la pieza hasta el hueco correcto.»). Cubierto en §12. |
+| 57 | **En práctica, cada fase empieza con su cartel** | Antes el cartel salía solo al completar una fase, así que quien arrancaba la partida o saltaba de fase no veía qué había que hacer. Ahora sale al **empezar** cada fase en práctica (también la primera, y también al reiniciar), se quita solo a los 3,6 s, y el estado guarda `lastAdvance` para poder decir «Fase completada» solo cuando se llegó completando y no cuando se saltó. En examen no se monta: el examen no da explicaciones. Cubierto en §16. |
+| 58 | **La pieza seleccionada se ve ampliada en una ventanita** (fase 1) | En la fase 1 están todas las piezas sobre la mesa y los conectores se ven muy pequeños. Al seleccionar una, una ventanita la enseña entera: el **PNG del conector** cuando existe (más nítido que el dibujo 3D: `ps2`, `usb`, `lan`, `hdmi`, `displayport`, `dvi`, `vga`) y, si no, una **vista 3D de cerca** con la misma `ComponentVisual` (drei no trae `View` en esta versión, así que es un mini lienzo). Va al centro-abajo —la captura enseñó que a la izquierda tapaba la lista de fases—, con `pointer-events: none` para no estorbar el arrastre, solo en la fase 1 y **sin el nombre en examen** (misma regla que la 56). Cubierto en §17. |
 
 ## 7. Pipeline de assets 3D
 
@@ -314,7 +321,8 @@ npm run models:optimize -- --force                       # reoptimiza todo
 ## 8. Interacción (resumen técnico)
 
 - `TrayItem.onPointerDown` (o el asa de la lista de piezas en la fase 2) inicia
-  el arrastre; `DragController` escucha `pointermove`/`pointerup` en `window` y
+  el arrastre; `DragController` escucha `pointermove` y `pointerup` en `window`,
+  y también `pointercancel` (si el navegador se queda el gesto, cancela) y
   proyecta el rayo sobre el plano de la fase (`horizontal` o `vertical`).
 - `updateDrag` calcula el hueco candidato más cercano dentro de `snapRadius`,
   comparando las dos coordenadas del plano de la fase, y resalta el fantasma con
@@ -346,7 +354,37 @@ No hay suite de tests automáticos. Antes de dar por bueno un cambio:
    modo calibración y una partida completa de las 3 fases).
 El arnés de `tests/` usa Chromium headless vía `puppeteer-core` y es la forma
 rápida de detectar regresiones en la colocación de piezas, el avance de fase y
-el conteo de fallos.
+el conteo de fallos. Busca el navegador en las cachés de puppeteer y de
+Playwright y en las instalaciones habituales de Chrome (`CHROME=<ruta>` lo fija).
+
+**Reinicia el servidor de desarrollo antes de correr el arnés si has tocado
+`src/`.** Con HMR, el import dinámico de `/src/store/useGameStore.ts` que usan
+algunas secciones (§7, §12 y §13) puede devolver una copia **distinta** de la que
+usa la app: Vite añade `?t=…` al módulo invalidado, así que las acciones del
+store dejan de llegar a la partida. El síntoma es desconcertante —la fase no
+avanza, la partida no reacciona— y parece un fallo del código cuando es de la
+prueba. §14 y §15 van por la interfaz con `clickButton` precisamente para no
+depender de qué instancia del módulo tenga la app.
+
+**Y levántalo con el puerto fijado:** `npm run dev -- --port 5199 --strictPort`.
+Sin `--strictPort`, si 5199 sigue ocupado por un servidor anterior —pararlo desde
+una herramienta del agente no siempre mata el proceso de Vite— el servidor se pasa
+al 5200 **en silencio** y el arnés, que habla con 5199, acaba hablando con un
+proceso moribundo: la app carga, las primeras comprobaciones pasan y el resto
+falla con errores de red que no tienen nada que ver con el código. Comprueba la
+línea «Local:» del log. El arnés avisa de esto con un preflight
+(`requireServer()`): si no hay simulador vivo en `BASE_URL`, sale con un mensaje
+claro en vez de con veinte fallos.
+
+**Y que el import del store sea el de la app**: el arnés lleva otro preflight
+(`requireSameStoreInstance()`) que mueve el store desde el import dinámico y
+comprueba que la app lo refleja en el DOM. Sin él, la trampa de HMR de arriba se
+disfrazaba de fallo de producto: siete comprobaciones «se quedó en identificación»
+(job-23) sin decir en ninguna por qué.
+
+**Para comprobar una sola cosa** (por ejemplo falsar un cambio sin pagar la
+pasada entera, que dura unos 11 minutos): `ONLY=touchDrag,loadingBar node
+tests/run.mjs`, con los nombres de `SECTIONS` separados por comas.
 
 ## 11. Despliegue (GitHub Pages)
 

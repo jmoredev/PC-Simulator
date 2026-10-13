@@ -753,12 +753,31 @@ export const MOUNTS_BY_STAGE: Record<StageId, MountPoint[]> = {
   peripherals: MOUNTS.filter((m) => m.stage === 'peripherals'),
 }
 
+/**
+ * Piezas que cuentan para terminar una fase: en la identificación, todas
+ * (incluidos los cables que sobran); en el resto, las que tienen sitio.
+ * `STAGE_STEPS` y el resumen final salen de aquí para que el número y la lista
+ * no puedan discrepar.
+ */
+export function stageComponents(stage: StageId): ComponentDef[] {
+  const inStage = COMPONENTS_BY_STAGE[stage]
+  return stage === 'identify' ? inStage : inStage.filter((c) => !c.decoy)
+}
+
 /** Piezas que hay que colocar en cada fase (en la identificación, todas). */
 export const STAGE_STEPS: Record<StageId, number> = {
-  identify: COMPONENTS_BY_STAGE.identify.length,
-  board: COMPONENTS_BY_STAGE.board.filter((c) => !c.decoy).length,
-  ports: COMPONENTS_BY_STAGE.ports.filter((c) => !c.decoy).length,
-  peripherals: COMPONENTS_BY_STAGE.peripherals.filter((c) => !c.decoy).length,
+  identify: stageComponents('identify').length,
+  board: stageComponents('board').length,
+  ports: stageComponents('ports').length,
+  peripherals: stageComponents('peripherals').length,
+}
+
+/**
+ * Pieza del catálogo que va en un hueco (la primera que encaja). La usa el
+ * resumen del examen para poder decir qué iba en el sitio del fallo.
+ */
+export function componentForMount(mount: MountPoint): ComponentDef | undefined {
+  return stageComponents(mount.stage).find((c) => mount.accepts.includes(c.kind))
 }
 
 /** Colocaciones de toda la partida. */

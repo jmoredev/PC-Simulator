@@ -50,6 +50,26 @@ button {
   z-index: 0;
 }
 
+/* Arrastrar una pieza es un gesto del juego, no del navegador: las dos
+   superficies desde las que se empieza a arrastrar (el lienzo 3D y la barra de
+   cables) se quedan el gesto, para que el desplazamiento o el zoom de la página
+   no lo cancelen a mitad.
+
+   En el lienzo hace falta `!important`: `OrbitControls` (three-stdlib) escribe
+   `touch-action: auto` EN LÍNEA sobre el canvas al desmontarse
+   (`controls/OrbitControls.cjs`), y el estilo en línea gana a una clase, así que
+   la regla quedaba inerte y el navegador se quedaba el gesto. Se pone además en
+   el contenedor, porque el navegador decide el gesto con la intersección de la
+   propiedad en el elemento y en sus antepasados. */
+.canvas-host,
+.connbar__item {
+  touch-action: none;
+}
+
+.canvas-host canvas {
+  touch-action: none !important;
+}
+
 /* ---------- barra superior ---------- */
 .topbar {
   position: absolute;
@@ -685,6 +705,92 @@ button {
   bottom: 96px;
 }
 
+/* ---------- aviso de carga de los modelos ---------- */
+.loadingbar {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  font-size: 13px;
+  color: var(--muted);
+  /* Avisa sin estorbar: no se queda con los clics del juego. */
+  pointer-events: none;
+  z-index: 10;
+}
+
+.loadingbar__label {
+  color: var(--text);
+}
+
+.loadingbar__pct {
+  min-width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.loadingbar__track {
+  width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.22);
+  overflow: hidden;
+}
+
+.loadingbar__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s linear;
+}
+
+/* ---------- ventanita con la pieza seleccionada ampliada ---------- */
+.zoom {
+  position: absolute;
+  /* Centrado y por encima de la barra de estado: así no tapa la lista de fases
+     (izquierda) ni la ficha (derecha), que en práctica ocupan los lados. */
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 84px;
+  width: 176px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  /* No estorba: no se queda con los clics del arrastre. */
+  pointer-events: none;
+  z-index: 11;
+}
+
+.zoom__view {
+  height: 132px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zoom__img {
+  max-width: 92%;
+  max-height: 92%;
+  object-fit: contain;
+}
+
+.zoom__name {
+  display: block;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text);
+  text-align: center;
+}
+
 /* ---------- barra de cables (fase de conectores) ---------- */
 .connbar {
   position: absolute;
@@ -928,6 +1034,43 @@ button {
   font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
+}
+
+/* ---------- resumen del examen ---------- */
+.finish-review {
+  margin: 18px 0 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.35);
+}
+
+.finish-review h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.finish-review__list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.finish-review__list b {
+  color: var(--accent);
+}
+
+.finish-review__where {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.finish-review--unplaced .finish-review__list b {
+  color: var(--warning);
 }
 
 .finish-score {

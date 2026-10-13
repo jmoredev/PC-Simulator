@@ -21,9 +21,15 @@ export function StatusBar({ raised = false }: { raised?: boolean }) {
     text = 'Ese no es su sitio. ¡Fíjate bien!'
     tone = 'status-danger'
   } else if (dragging && hoverMountId) {
-    const mount = MOUNTS_BY_STAGE[STAGES[stageIndex].id].find((m) => m.id === hoverMountId)
-    text = `Suelta aquí: ${mount?.label ?? ''}`
-    tone = 'status-ok'
+    // En examen, nombrar el hueco compatible es la respuesta: el aviso se queda
+    // para la práctica y en examen solo se dice la instrucción de siempre.
+    if (mode === 'practice') {
+      const mount = MOUNTS_BY_STAGE[STAGES[stageIndex].id].find((m) => m.id === hoverMountId)
+      text = `Suelta aquí: ${mount?.label ?? ''}`
+      tone = 'status-ok'
+    } else {
+      text = 'Lleva la pieza hasta el hueco correcto.'
+    }
   } else if (dragging) {
     text = 'Lleva la pieza hasta el hueco correcto.'
   } else if (selectedId) {
@@ -38,7 +44,8 @@ export function StatusBar({ raised = false }: { raised?: boolean }) {
           ? `${def.name}: colócala en «${targets}». Arrástrala o haz clic en la zona iluminada.`
           : `${def.name}: esta pieza no encaja en ningún sitio. Déjala en la bandeja.`
       } else {
-        text = `${def.name} seleccionado. Arrástralo hasta su sitio.`
+        // Sin el nombre: en examen decir qué pieza es también es una pista.
+        text = 'Pieza seleccionada. Arrástrala hasta su sitio.'
       }
       tone = 'status-ok'
     }
