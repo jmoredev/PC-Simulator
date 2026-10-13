@@ -2039,6 +2039,9 @@ async function loadingBar() {
           pct: bar.querySelector('.loadingbar__pct')?.textContent?.trim() ?? '',
           ancho: fill ? fill.style.width : '',
           pointerEvents: getComputedStyle(bar).pointerEvents,
+          role: bar.getAttribute('role') ?? '<sin role>',
+          valor: bar.getAttribute('aria-valuenow') ?? '<sin aria-valuenow>',
+          nombre: bar.getAttribute('aria-label') ?? '<sin aria-label>',
         }
       })
       .catch(() => null)
@@ -2061,6 +2064,16 @@ async function loadingBar() {
       'carga: la barra no bloquea el juego',
       bar.pointerEvents === 'none',
       `pointer-events: ${bar.pointerEvents}`,
+    )
+    // Se anuncia como progreso con su valor, no como `status` con `aria-live`:
+    // el porcentaje cambia decenas de veces y un lector de pantalla encolaría un
+    // anuncio por cada cambio (hallazgo R4-002 de la revisión nativa).
+    check(
+      'carga: la barra se anuncia como progreso con su valor',
+      bar.role === 'progressbar' &&
+        bar.valor === bar.pct.replace(' %', '') &&
+        bar.nombre.startsWith('Cargando'),
+      `role=${bar.role}, aria-valuenow=${bar.valor}, aria-label=«${bar.nombre}» con ${bar.pct}`,
     )
   }
 

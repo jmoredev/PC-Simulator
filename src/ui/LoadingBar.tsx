@@ -23,7 +23,17 @@ export function LoadingBar() {
     : 'Cargando los modelos 3D…'
 
   return (
-    <div className="loadingbar" role="status" aria-live="polite">
+    // `progressbar` con su valor en vez de `status`+`aria-live`: el porcentaje
+    // cambia decenas de veces mientras baja un modelo grande y un lector de
+    // pantalla encolaría un anuncio por cada cambio.
+    <div
+      className="loadingbar"
+      role="progressbar"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={label}
+    >
       <span className="loadingbar__label">{label}</span>
       <span className="loadingbar__pct">{pct} %</span>
       <div className="loadingbar__track">

@@ -74,7 +74,12 @@ export function ComponentZoom({ id, mode }: { id: string; mode: GameMode }) {
         {image ? (
           <img className="zoom__img" src={image} alt="" draggable={false} />
         ) : (
-          <Canvas camera={{ position: [1.8, 2.9, 3.4], fov: 30 }} dpr={[1, 2]}>
+          <Canvas camera={{ position: [1.8, 2.9, 3.4], fov: 30 }} dpr={[1, 2]} frameloop="demand">
+            {/* `demand`: la escena del zoom es estática tras el primer encuadre, así
+                que no hay que mantener un bucle de render propio (y menos en los
+                portátiles modestos que busca el proyecto). r3f renderiza al montar
+                y cuando llega el modelo, que es cuando `Encuadre` necesita su
+                fotograma. */}
             <ambientLight intensity={1.15} />
             <directionalLight position={[2, 3, 4]} intensity={1.9} />
             <directionalLight position={[-2, 1, -3]} intensity={0.7} />
