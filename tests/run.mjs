@@ -2000,6 +2000,10 @@ async function loadingBar() {
   // programa tardaría minutos) para que la carga del modelo dure lo suficiente
   // como para mirarla en vez de adivinarla.
   const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  // Sin caché: las secciones anteriores ya cargaron este mismo modelo, así que la
+  // barra podría no aparecer (o durar demasiado poco para verla) y la prueba
+  // saldría frágil (hallazgo R3-001 de la revisión nativa).
+  await page.setCacheEnabled(false)
   const client = await page.createCDPSession()
   await client.send('Network.enable')
 
@@ -2122,7 +2126,7 @@ async function stageBanner() {
   await wait(700)
   const esperado = await page.evaluate(async () => {
     const m = await import('/src/data/stages.ts')
-    return m.STAGES.map((s) => ({ id: s.id, titulo: s.title, texto: s.hint }))
+    return m.STAGES.map((s) => ({ id: s.id, titulo: s.title, texto: s.hint, corto: s.short }))
   })
   const primero = await lee()
   check(
@@ -2150,6 +2154,40 @@ async function stageBanner() {
     'cartel de fase: al saltar explica la fase nueva (y no dice «completada»)',
     !!segunda && segunda.kicker === 'Fase 2 de 4' && segunda.titulo === `2. ${esperado[1].titulo}`,
     JSON.stringify(segunda),
+  )
+
+  // Y al COMPLETAR una fase el cartel lo dice: se completa la fase 2 colocando sus
+  // piezas con el mismo gesto que usa el resto del arnés (lista + zona iluminada).
+  // Hay que abrir la lista a mano (el panel arranca plegado) y usar los índices de
+  // SU grupo: la lista agrupa las piezas por fase y solo deja seleccionar las de la
+  // fase actual, así que las de la fase 2 empiezan en `IDENTIFY` (las 18 de la
+  // identificación van primero).
+  await openSidePanel(page)
+  let intentos = 0
+  let ultimoOk = null
+  for (let n = 0; n < 10; n++) {
+    const fase = await page.$eval('.badge--stage', (el) => el.textContent.trim()).catch(() => '')
+    if (fase !== esperado[1].corto) break
+    ultimoOk = await place(page, IDENTIFY + n)
+    intentos++
+    await wait(900)
+    if (!ultimoOk) break
+  }
+  const faseFinal = await page
+    .$eval('.badge--stage', (el) => el.textContent.trim())
+    .catch(() => '<sin badge>')
+  // El cartel dura 3,6 s y el momento exacto en que aparece depende del último
+  // encaje, así que se sondea en vez de leerlo en un instante.
+  let completada = null
+  for (let t = 0; t < 24 && !completada; t++) {
+    const visto = await lee()
+    if (visto && visto.kicker === 'Fase completada') completada = visto
+    else await wait(250)
+  }
+  check(
+    'cartel de fase: al completar una fase lo dice',
+    !!completada && completada.titulo === `3. ${esperado[2].titulo}`,
+    `${JSON.stringify(completada)} · fase final «${faseFinal}» · ${intentos} colocaciones, último ok=${ultimoOk}`,
   )
   check('cartel de fase: sin errores de página', errors.length === 0, errors.join(' | '))
   await page.close()

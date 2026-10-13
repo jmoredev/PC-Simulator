@@ -770,13 +770,26 @@ button {
 }
 
 .zoom__view {
+  position: relative;
   height: 132px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+/* El lienzo se queda montado aunque se enseñe el PNG: montarlo y desmontarlo al
+   cambiar de pieza creaba un contexto WebGL por ciclo (ver ComponentZoom). */
+.zoom__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.zoom__canvas--tapado {
+  visibility: hidden;
+}
+
 .zoom__img {
+  position: relative;
   max-width: 92%;
   max-height: 92%;
   object-fit: contain;

@@ -1,4 +1,4 @@
-import { Suspense, useRef, type ReactNode } from 'react'
+import { Suspense, useRef, useState, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { connectorImageUrl } from '../data/assets'
@@ -52,17 +52,24 @@ function Encuadre({ children }: { children: ReactNode }) {
  * Ventanita con la pieza seleccionada ampliada. En la fase 1 están todas sobre la
  * mesa y algunas —los conectores— se ven muy pequeñas: aquí se ven enteras.
  *
- * Para los conectores con imagen propia se usa el PNG (más nítido que el dibujo
- * 3D); para el resto, una vista 3D de cerca con la misma pieza que se arrastra.
+ * Para los conectores con imagen propia se enseña el PNG (más nítido que el
+ * dibujo 3D) y para el resto la vista 3D de cerca. **El lienzo se queda montado
+ * siempre**, aunque se enseñe el PNG: montarlo y desmontarlo al cambiar de pieza
+ * creaba un contexto WebGL nuevo en cada ciclo y, alternando en la fase 1, se
+ * puede agotar el límite del navegador.
  *
  * En examen no se escribe el nombre: decir qué pieza es también es una pista
  * (misma regla que en la barra de estado).
  */
 export function ComponentZoom({ id, mode }: { id: string; mode: GameMode }) {
   const def = COMPONENT_BY_ID[id]
+  /** Pieza cuyo PNG no cargó: se cae a la vista 3D en vez de dejar la imagen rota. */
+  const [pngRoto, setPngRoto] = useState<string | null>(null)
+
   if (!def) return null
 
-  const image = def.category === 'conector' ? connectorImageUrl(def.kind) : undefined
+  const conImagen = def.category === 'conector' ? connectorImageUrl(def.kind) : undefined
+  const imagen = pngRoto === def.id ? undefined : conImagen
   // La pieza se dibuja a un tamaño parecido en la ventanita sea cual sea su
   // `size` (los modelos se autoajustan a `def.size`; los conectores procedurales
   // son más pequeños y se agrandan con este factor).
@@ -71,15 +78,11 @@ export function ComponentZoom({ id, mode }: { id: string; mode: GameMode }) {
   return (
     <div className="zoom">
       <div className="zoom__view">
-        {image ? (
-          <img className="zoom__img" src={image} alt="" draggable={false} />
-        ) : (
+        <div className={imagen ? 'zoom__canvas zoom__canvas--tapado' : 'zoom__canvas'}>
           <Canvas camera={{ position: [1.8, 2.9, 3.4], fov: 30 }} dpr={[1, 2]} frameloop="demand">
-            {/* `demand`: la escena del zoom es estática tras el primer encuadre, así
-                que no hay que mantener un bucle de render propio (y menos en los
-                portátiles modestos que busca el proyecto). r3f renderiza al montar
-                y cuando llega el modelo, que es cuando `Encuadre` necesita su
-                fotograma. */}
+            {/* `demand`: la escena es estática tras el primer encuadre, así que no
+                hay que mantener un bucle de render propio (y menos en los
+                portátiles modestos que busca el proyecto). */}
             <ambientLight intensity={1.15} />
             <directionalLight position={[2, 3, 4]} intensity={1.9} />
             <directionalLight position={[-2, 1, -3]} intensity={0.7} />
@@ -91,6 +94,15 @@ export function ComponentZoom({ id, mode }: { id: string; mode: GameMode }) {
               </Encuadre>
             </Suspense>
           </Canvas>
+        </div>
+        {imagen && (
+          <img
+            className="zoom__img"
+            src={imagen}
+            alt=""
+            draggable={false}
+            onError={() => setPngRoto(def.id)}
+          />
         )}
       </div>
       {mode === 'practice' && <span className="zoom__name">{def.name}</span>}
