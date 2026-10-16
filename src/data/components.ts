@@ -654,10 +654,29 @@ export function rotationPreviewDef(target: RotationTarget, rotation: Vec3): Comp
   }
 }
 
-/** Rejilla de los carteles de la identificación, más separada que la bandeja. */
-const PLATE_COLS = [-3.6, -1.8, 0, 1.8, 3.6]
-const PLATE_Z0 = -1.05
-const PLATE_DZ = 0.95
+/**
+ * Rejilla de los carteles de la identificación: 6 columnas × 3 filas (18 carteles,
+ * uno por pieza, así que no sobra ninguna celda).
+ *
+ * La separación entre filas no es estética: en la fase 1 la colocación se resuelve
+ * por cercanía al centro del cartel con `snapRadius` 0,6, y el fallo se cuenta
+ * cuando un cartel AJENO está a `wrongRadius` (0,6) del punto donde se suelta
+ * (`endDrag` de `useGameStore`). Con las filas a 0,95 u —lo que había— la banda
+ * que cuenta el vecino empezaba a 0,35 u del centro, o sea **0,15 u más allá del
+ * borde visible de la tarjeta** (1,0 × 0,4): soltar cerca del borde contaba como
+ * fallo del cartel de al lado y restaba puntos. Ahora la fila mide 1,75 u, así que
+ * las dos regiones ya no se solapan (1,75 ≥ 0,6 + 0,6): fallar de largo solo
+ * significa que la pieza no se coloca, y el peor hueco en pantalla entre dos
+ * tarjetas pasa de 23 px a 31 px.
+ *
+ * Todo medido con la proyección de la cámara (`tests/`, sonda de la fase 1): cuatro
+ * filas de 5 columnas no caben más separadas —con 1,25 la de atrás queda a 0,1 u
+ * del borde de la mesa y con 1,3 se sale— y seis columnas dejan 55 px de hueco
+ * horizontal con tres filas de 1,75.
+ */
+const PLATE_COLS = [-3.75, -2.25, -0.75, 0.75, 2.25, 3.75]
+const PLATE_Z0 = -0.95
+const PLATE_DZ = 1.75
 
 function plateSlot(index: number, rowCount: number): [number, number] {
   const col = Math.min(Math.floor(index / rowCount), PLATE_COLS.length - 1)
@@ -753,12 +772,31 @@ export const MOUNTS_BY_STAGE: Record<StageId, MountPoint[]> = {
   peripherals: MOUNTS.filter((m) => m.stage === 'peripherals'),
 }
 
+/**
+ * Piezas que cuentan para terminar una fase: en la identificación, todas
+ * (incluidos los cables que sobran); en el resto, las que tienen sitio.
+ * `STAGE_STEPS` y el resumen final salen de aquí para que el número y la lista
+ * no puedan discrepar.
+ */
+export function stageComponents(stage: StageId): ComponentDef[] {
+  const inStage = COMPONENTS_BY_STAGE[stage]
+  return stage === 'identify' ? inStage : inStage.filter((c) => !c.decoy)
+}
+
 /** Piezas que hay que colocar en cada fase (en la identificación, todas). */
 export const STAGE_STEPS: Record<StageId, number> = {
-  identify: COMPONENTS_BY_STAGE.identify.length,
-  board: COMPONENTS_BY_STAGE.board.filter((c) => !c.decoy).length,
-  ports: COMPONENTS_BY_STAGE.ports.filter((c) => !c.decoy).length,
-  peripherals: COMPONENTS_BY_STAGE.peripherals.filter((c) => !c.decoy).length,
+  identify: stageComponents('identify').length,
+  board: stageComponents('board').length,
+  ports: stageComponents('ports').length,
+  peripherals: stageComponents('peripherals').length,
+}
+
+/**
+ * Pieza del catálogo que va en un hueco (la primera que encaja). La usa el
+ * resumen del examen para poder decir qué iba en el sitio del fallo.
+ */
+export function componentForMount(mount: MountPoint): ComponentDef | undefined {
+  return stageComponents(mount.stage).find((c) => mount.accepts.includes(c.kind))
 }
 
 /** Colocaciones de toda la partida. */

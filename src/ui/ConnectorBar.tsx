@@ -40,12 +40,18 @@ export function ConnectorBar() {
                   beginDrag(def.id, 100, 100)
                 }
                 const onUp = () => stop()
+                // Si el navegador cancela el gesto (desplazamiento, zoom, gesto del
+                // sistema) no llega ningún `pointerup`: sin esto los escuchas se
+                // quedarían puestos hasta el siguiente gesto.
+                const onCancel = () => stop()
                 const stop = () => {
                   window.removeEventListener('pointermove', onMove)
                   window.removeEventListener('pointerup', onUp)
+                  window.removeEventListener('pointercancel', onCancel)
                 }
                 window.addEventListener('pointermove', onMove)
                 window.addEventListener('pointerup', onUp)
+                window.addEventListener('pointercancel', onCancel)
               }}
               onClick={() => select(active ? null : def.id)}
             >

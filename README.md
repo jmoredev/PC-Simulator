@@ -33,13 +33,23 @@ La versión online para el aula se publica desde la rama `main` en
   4. **Periféricos**: monitor, teclado, ratón y altavoces a **escala realista**
      junto al PC ya montado.
 - **Modo práctica**: al coger una pieza se ilumina su hueco en verde con el
-  nombre del sitio.
+  nombre del sitio. Al empezar cada fase aparece un **cartel** con lo que hay que
+  hacer en ella.
+- **Piezas ampliadas**: en la fase 1, la pieza que seleccionas se ve ampliada en
+  una ventanita (los conectores, con su imagen nítida), en práctica y en examen.
 - **Modo examen**: sin pistas, cuenta fallos y da una nota sobre 100, con tiempo
-  y precisión.
+  y precisión. Al terminar, un **resumen** dice qué se falló —con la pieza que
+  pusiste, el hueco y cuál iba ahí— y qué quedó sin colocar, indicando en qué
+  fase faltaba cada pieza (la misma puede faltar en dos: identificarla y
+  montarla). Sin pistas de ningún tipo: la barra de estado no dice el nombre de
+  la pieza ni el del hueco.
 - **Ficha didáctica** de cada componente (qué es, para qué sirve y un dato
   curioso), en lenguaje divulgativo.
 - **Funciona sin assets**: si no hay modelos `.glb`, se usan formas 3D
   procedurales. Solo hay que soltar los modelos y activarlos.
+- **Aviso de carga**: mientras llega un modelo (la placa pesa hasta 18,8 MB) se
+  ve una barra con el porcentaje y qué se está cargando. No bloquea: la escena y
+  la interfaz siguen respondiendo.
 - Al completar una fase, la cámara se desplaza sola a la siguiente y aparece un
   aviso con lo que toca hacer.
 
@@ -69,6 +79,9 @@ npm run models:optimize   # comprime los .glb de public/assets/models
   en la zona iluminada (solo en modo práctica).
 - **Ratón**: botón izquierdo para girar la cámara, rueda para acercar/alejar.
 - **Esc**: cancela el arrastre en curso.
+- **Pantalla táctil** (Chromebooks y portátiles convertibles): el mismo gesto
+  sirve con el dedo. Si el sistema se queda con el gesto (desplazamiento o
+  zoom), el arrastre se cancela y la pieza vuelve a su sitio: no cuenta fallo.
 - **Ayuda**: la tarjeta de controles se abre y se cierra con el botón `?`.
 
 ## Desarrollo y ramas
@@ -96,7 +109,9 @@ node tests/run.mjs     # calibración + partida completa de las 3 fases
 ```
 
 Usa Chromium headless (`puppeteer-core`) instalado aparte en `tests/`, así que
-no añade dependencias a la app.
+no añade dependencias a la app. Busca el navegador en las cachés de puppeteer y
+de Playwright y en las instalaciones habituales de Chrome; si no lo encuentra,
+indica la ruta con `CHROME=<ruta>`.
 
 ## Modelos 3D (opcional)
 
@@ -219,7 +234,7 @@ src/
 │   ├── Placeholder.tsx  # geometría procedural de cada componente
 │   ├── MountZone.tsx    # zonas resaltadas de los huecos
 │   └── primitives.tsx   # cajas, cilindros y esferas reutilizables
-├── ui/                  # menú, lista por fases, ficha, progreso, resultados y leyenda
+├── ui/                  # menú, lista por fases, ficha, progreso, resultados, aviso de carga y leyenda
 └── App.tsx              # composición del lienzo y la interfaz
 ```
 
@@ -242,5 +257,10 @@ así que se citan como adaptados.
 
 - Pensado para funcionar en portátiles y Chromebooks modestos: si va lento,
   baja el `dpr` en `src/App.tsx` o desactiva las sombras (`shadows`).
+- **Peso de los modelos**: el `.glb` más pesado es la placa
+  (`motherboard-01.glb`, 18,8 MB y 652.238 vértices; los otros dos, 9,3 MB y
+  4,9 MB). Como la placa es aleatoria en cada carga (salvo `?board=<id>`), una de
+  cada tres partidas descarga la grande al empezar la fase 2: en ese momento
+  aparece la barra de progreso.
 - El modo examen es una buena evaluación inicial; el modo práctica, para
   introducir el vocabulario técnico.

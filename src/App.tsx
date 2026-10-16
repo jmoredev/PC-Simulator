@@ -6,10 +6,12 @@ import type { GameMode } from './types'
 import { Scene } from './three/Scene'
 import { CalibrationPanel } from './ui/CalibrationPanel'
 import { ComponentList } from './ui/ComponentList'
+import { ComponentZoom } from './ui/ComponentZoom'
 import { ConnectorBar } from './ui/ConnectorBar'
 import { ControlsHelp } from './ui/ControlsHelp'
 import { FinishModal } from './ui/FinishModal'
 import { InfoPanel } from './ui/InfoPanel'
+import { LoadingBar } from './ui/LoadingBar'
 import { ModeMenu } from './ui/ModeMenu'
 import { StageBanner } from './ui/StageBanner'
 import { StatusBar } from './ui/StatusBar'
@@ -85,6 +87,10 @@ export default function App() {
         </Canvas>
       </div>
 
+      {/* El aviso de carga va también en calibración: la placa es el modelo más
+          pesado y allí se carga igual. */}
+      <LoadingBar />
+
       {CALIBRATE ? (
         <CalibrationPanel />
       ) : (
@@ -110,6 +116,12 @@ export default function App() {
               <StatusBar raised={cableBar} />
               {cableBar && <ConnectorBar />}
               <StageBanner />
+              {/* En la fase 1 las piezas se ven pequeñas: la seleccionada aparece
+                  ampliada (con su nombre solo en práctica). El panel se monta
+                  durante toda la fase y se oculta sin selección: montarlo y
+                  desmontarlo con cada colocación creaba un contexto WebGL por
+                  ciclo (R4-001). */}
+              {stage.id === 'identify' && <ComponentZoom id={selectedId} mode={mode} />}
               {phase === 'building' && <ControlsHelp />}
             </>
           )}
