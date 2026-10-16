@@ -2621,6 +2621,7 @@ async function identifyCards() {
       piezas: c.COMPONENTS_BY_STAGE.identify.length,
       snap: Math.max(...mounts.map((m) => m.snapRadius)),
       wrong: stage.drop.wrongRadius,
+      cardHalf: Math.max(w, d) / 2,
       minPlano,
       minX,
       minZ,
@@ -2649,6 +2650,28 @@ async function identifyCards() {
     'carteles: la fila de atrás cabe en la mesa',
     reparto.bordeTrasero >= reparto.mesaTrasera,
     `borde trasero ${reparto.bordeTrasero.toFixed(2)} u, la mesa llega a ${reparto.mesaTrasera.toFixed(2)} u`,
+  )
+  // El requisito de la persona usuaria: soltar SOBRE la tarjeta tiene que colocar
+  // siempre. Basta con que medio lado de la tarjeta quepa en `snapRadius`.
+  check(
+    'carteles: soltar sobre la propia tarjeta siempre coloca',
+    reparto.cardHalf < reparto.snap,
+    `medio lado ${reparto.cardHalf.toFixed(2)} u frente a snapRadius ${reparto.snap.toFixed(2)} u`,
+  )
+  // El fallo se cuenta PASADO `snapRadius` (antes coloca), así que lo que decide es
+  // hasta dónde llega el alcance del vecino: si `snapRadius` y ese alcance se
+  // solapan, no queda ningún tiro largo sin coste.
+  check(
+    'carteles: el vecino solo cuenta pasado snapRadius',
+    reparto.minPlano - reparto.wrong > reparto.snap,
+    `el vecino entra en su banda a ${(reparto.minPlano - reparto.wrong).toFixed(2)} u del centro, más allá de snapRadius ${reparto.snap.toFixed(2)} u`,
+  )
+  // El tiro que hace esta sección (0,7 u hacia el vecino más próximo) no puede
+  // alcanzar su banda: deja la pieza sin colocar y no cuesta nada.
+  check(
+    'carteles: el tiro de 0,7 u hacia el vecino no llega a su banda',
+    reparto.minPlano >= reparto.snap + 0.7,
+    `separación mínima ${reparto.minPlano.toFixed(2)} u frente a ${(reparto.snap + 0.7).toFixed(2)} u`,
   )
 
   // Hueco en pantalla entre los rectángulos de dos tarjetas vecinas: es lo que se
