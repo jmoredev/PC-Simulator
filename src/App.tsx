@@ -117,10 +117,11 @@ export default function App() {
               {cableBar && <ConnectorBar />}
               <StageBanner />
               {/* En la fase 1 las piezas se ven pequeñas: la seleccionada aparece
-                  ampliada (con su nombre solo en práctica). */}
-              {stage.id === 'identify' && selectedId && (
-                <ComponentZoom id={selectedId} mode={mode} />
-              )}
+                  ampliada (con su nombre solo en práctica). El panel se monta
+                  durante toda la fase y se oculta sin selección: montarlo y
+                  desmontarlo con cada colocación creaba un contexto WebGL por
+                  ciclo (R4-001). */}
+              {stage.id === 'identify' && <ComponentZoom id={selectedId} mode={mode} />}
               {phase === 'building' && <ControlsHelp />}
             </>
           )}

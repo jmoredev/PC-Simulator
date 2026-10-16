@@ -117,6 +117,17 @@ async function isVisible(page, selector) {
 }
 
 /**
+ * ¿Se ve el panel de la pieza? Desde R4-001 el panel está montado durante toda la
+ * fase 1 y se oculta sin selección, así que «está en el DOM» ya no distingue nada:
+ * lo que dice que hay una pieza cogida es que se vea.
+ */
+async function zoomPanelVisible(page) {
+  return page
+    .$eval('.zoom', (el) => getComputedStyle(el).visibility !== 'hidden')
+    .catch(() => false)
+}
+
+/**
  * Pulsa el primer botón de la barra superior cuyo texto empiece por `text`.
  * Preferir esto al import dinámico del store: el botón es lo que pulsa una
  * persona y no depende de qué instancia del módulo tenga la app.
@@ -2210,6 +2221,61 @@ async function stageBanner() {
 }
 
 /* ---------- 17. La pieza seleccionada se ve ampliada en la fase 1 ---------- */
+/**
+ * Punto de pantalla de la fase 1 donde se dibuja algo del mundo: `'pieza'` es la
+ * pieza de la mesa del alumno y `'cartel'` es el cartel que le toca (los huecos de
+ * la fase 1, `MOUNTS_BY_STAGE.identify`).
+ *
+ * La cámara de la fase 1 es fija y la declara `stages.ts`, pero el arnés no tiene
+ * la instancia del lienzo: la proyección se hace a mano con su posición, su
+ * objetivo y su fov. El `y` de la pieza no es `def.size / 2`: la pieza dibujada no
+ * mide lo que su `size` (la encoge `trayScaleFor` hasta 0,75), y apuntar a la mitad
+ * de su `size` cae muy por encima de ella.
+ */
+async function pantallaFase1(page, id, que) {
+  return page.evaluate(
+    async ({ id, que }) => {
+      const c = await import('/src/data/components.ts')
+      const st = await import('/src/data/stages.ts')
+      const stage = st.STAGES[0]
+      const def = c.COMPONENT_BY_ID[id]
+      let mundo
+      if (que === 'cartel') {
+        const mount = c.MOUNTS_BY_STAGE.identify.find((m) => m.accepts.includes(def.kind))
+        if (!mount) return null
+        mundo = mount.position
+      } else {
+        mundo = [
+          def.identifyPos[0],
+          stage.tray.surfaceY + Math.min(def.size, 0.75) / 2,
+          def.identifyPos[1],
+        ]
+      }
+      const [px, py, pz] = stage.camera.position
+      const [tx, ty, tz] = stage.camera.target
+      const n = Math.hypot(tx - px, ty - py, tz - pz)
+      const f = [(tx - px) / n, (ty - py) / n, (tz - pz) / n]
+      const r = [-f[2], 0, f[0]]
+      const nr = Math.hypot(...r)
+      r[0] /= nr
+      r[2] /= nr
+      const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]]
+      const d = [mundo[0] - px, mundo[1] - py, mundo[2] - pz]
+      const xv = d[0] * r[0] + d[1] * r[1] + d[2] * r[2]
+      const yv = d[0] * u[0] + d[1] * u[1] + d[2] * u[2]
+      const zv = d[0] * f[0] + d[1] * f[1] + d[2] * f[2]
+      const tan = Math.tan((45 * Math.PI) / 180 / 2)
+      const W = window.innerWidth
+      const H = window.innerHeight
+      return {
+        x: (xv / (zv * tan * (W / H)) + 1) / 2 * W,
+        y: (1 - yv / (zv * tan)) / 2 * H,
+      }
+    },
+    { id, que },
+  )
+}
+
 async function componentZoom() {
   // En la fase 1 están todas las piezas sobre la mesa y los conectores se ven muy
   // pequeños: al seleccionar una, sale una ventanita con la pieza ampliada (el
@@ -2232,6 +2298,7 @@ async function componentZoom() {
         canvas: !!el.querySelector('canvas'),
         nombre: (el.querySelector('.zoom__name')?.textContent ?? '').trim(),
         pointerEvents: getComputedStyle(el).pointerEvents,
+        visible: getComputedStyle(el).visibility !== 'hidden',
       }))
       .catch(() => null)
   const elegir = async (texto) => {
@@ -2249,7 +2316,15 @@ async function componentZoom() {
   await page.waitForSelector('.topbar', { timeout: 60000 })
   await openSidePanel(page)
   await wait(400)
-  check('zoom: sin pieza seleccionada no hay panel', !(await page.$('.zoom')))
+  // El panel se queda montado durante toda la fase 1 y se oculta sin selección:
+  // montarlo y desmontarlo con cada colocación (18 por partida) creaba un contexto
+  // WebGL por ciclo (R4-001).
+  const z0 = await lee()
+  check(
+    'zoom: sin pieza seleccionada el panel está montado y oculto',
+    !!z0?.canvas && z0.visible === false,
+    JSON.stringify(z0) ?? 'sin panel',
+  )
 
   const conPng = await elegir('Cable PS/2')
   const z1 = await lee()
@@ -2262,6 +2337,30 @@ async function componentZoom() {
   )
   check('zoom: el panel no bloquea los clics', z1?.pointerEvents === 'none', `pointer-events: ${z1?.pointerEvents}`)
 
+  // Se marca el nodo del lienzo y se da una vuelta entera al ciclo de la fase 1:
+  // seleccionar → colocar (que deselecciona) → seleccionar, que es lo que pasa 18
+  // veces por partida. Si el panel se remontara en cada vuelta, el marcador
+  // desaparecería (sería otro nodo, o no habría ninguno).
+  const marcado = await page
+    .$eval('.zoom canvas', (el) => {
+      el.dataset.marca = 'panel-unico'
+      return true
+    })
+    .catch(() => false)
+
+  const colocado = await place(page, 0)
+  check('zoom: se coloca una pieza en la fase 1', colocado)
+  await wait(400)
+  const trasColocar = await lee()
+  const marcaTrasColocar = await page
+    .$eval('.zoom canvas', (el) => el.dataset.marca === 'panel-unico')
+    .catch(() => false)
+  check(
+    'zoom: tras colocar una pieza el panel sigue montado y oculto',
+    !!trasColocar?.canvas && trasColocar.visible === false && marcaTrasColocar,
+    `${JSON.stringify(trasColocar)} · marcador: ${marcaTrasColocar}`,
+  )
+
   await elegir('CPU')
   const z2 = await lee()
   check(
@@ -2269,11 +2368,23 @@ async function componentZoom() {
     !!z2?.canvas && z2?.img === false,
     JSON.stringify(z2),
   )
+  const z2marca = await page
+    .$eval('.zoom canvas', (el) => el.dataset.marca === 'panel-unico')
+    .catch(() => false)
+  check(
+    'zoom: el lienzo del panel es el mismo tras un ciclo de colocación',
+    marcado && z2marca,
+    `marcado: ${marcado}, marcador presente: ${z2marca}`,
+  )
+  const lienzos = await page.$$eval('canvas', (els) => els.length)
+  check('zoom: solo hay dos lienzos (escena y panel) tras el ciclo', lienzos === 2, `${lienzos}`)
 
   check('zoom: se puede saltar de fase', await clickButton(page, 'Saltar fase'))
   await wait(1200)
   await elegir('CPU')
-  check('zoom: fuera de la fase 1 no sale el panel', !(await page.$('.zoom')))
+  // Fuera de la fase 1 el panel se desmonta del todo: el lienzo solo hace falta
+  // mientras están las piezas sobre la mesa.
+  check('zoom: fuera de la fase 1 el panel se desmonta', !(await page.$('.zoom')))
   check('zoom: sin errores de página', errors.length === 0, errors.join(' | '))
   await page.close()
 
@@ -2293,42 +2404,15 @@ async function componentZoom() {
   await cartas[1].click()
   await examen.page.waitForSelector('.badge--exam', { timeout: 60000 })
   await wait(1500)
-  check('zoom: en examen no hay panel sin coger nada', !(await examen.page.$('.zoom')))
+  check('zoom: en examen tampoco se ve el panel sin coger nada', !(await zoomPanelVisible(examen.page)))
 
-  const punto = await examen.page.evaluate(async () => {
-    const c = await import('/src/data/components.ts')
-    const st = await import('/src/data/stages.ts')
-    const stage = st.STAGES[0]
-    const def = [...c.COMPONENTS_BY_STAGE.identify].sort((a, b) => b.size - a.size)[0]
-    const [px, py, pz] = stage.camera.position
-    const [tx, ty, tz] = stage.camera.target
-    const n = Math.hypot(tx - px, ty - py, tz - pz)
-    const f = [(tx - px) / n, (ty - py) / n, (tz - pz) / n]
-    const r = [-f[2], 0, f[0]]
-    const nr = Math.hypot(...r)
-    r[0] /= nr
-    r[2] /= nr
-    const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]]
-    const d = [
-      def.identifyPos[0] - px,
-      // OJO: la pieza dibujada no mide `def.size`, sino como mucho 0,75
-      // (`trayScaleFor` la encoge). Apuntar a `def.size / 2` cae muy por encima.
-      stage.tray.surfaceY + Math.min(def.size, 0.75) / 2 - py,
-      def.identifyPos[1] - pz,
-    ]
-    const xv = d[0] * r[0] + d[1] * r[1] + d[2] * r[2]
-    const yv = d[0] * u[0] + d[1] * u[1] + d[2] * u[2]
-    const zv = d[0] * f[0] + d[1] * f[1] + d[2] * f[2]
-    const tan = Math.tan(((45 * Math.PI) / 180) / 2)
-    const W = window.innerWidth
-    const H = window.innerHeight
-    return {
-      id: def.id,
-      size: def.size,
-      x: ((xv / (zv * tan * (W / H))) + 1) / 2 * W,
-      y: (1 - yv / (zv * tan)) / 2 * H,
-    }
-  })
+  const mayor = await examen.page.evaluate(() =>
+    import('/src/data/components.ts').then((m) => {
+      const def = [...m.COMPONENTS_BY_STAGE.identify].sort((a, b) => b.size - a.size)[0]
+      return { id: def.id, size: def.size }
+    }),
+  )
+  const punto = await pantallaFase1(examen.page, mayor.id, 'pieza')
   let cogida = false
   for (const [dx, dy] of [
     [0, 0],
@@ -2343,7 +2427,7 @@ async function componentZoom() {
   ]) {
     await examen.page.mouse.click(punto.x + dx, punto.y + dy)
     await wait(500)
-    if (await examen.page.$('.zoom')) {
+    if (await zoomPanelVisible(examen.page)) {
       cogida = true
       break
     }
@@ -2354,6 +2438,7 @@ async function componentZoom() {
       img: !!el.querySelector('.zoom__img'),
       canvas: !!el.querySelector('canvas'),
       tieneNombre: !!el.querySelector('.zoom__name'),
+      visible: getComputedStyle(el).visibility !== 'hidden',
       texto: (el.textContent ?? '').trim(),
     }))
     check(
@@ -2362,9 +2447,113 @@ async function componentZoom() {
       JSON.stringify(z3),
     )
     check('zoom: en examen la pieza se enseña igual (3D o imagen)', !!z3.canvas || !!z3.img, JSON.stringify(z3))
+    check('zoom: al coger la pieza el panel se ve', z3.visible === true, JSON.stringify(z3))
   }
   check('zoom: examen sin errores de página', examen.errors.length === 0, examen.errors.join(' | '))
   await examen.page.close()
+}
+
+/**
+ * La fase 1 de examen tiene su propio aviso en la barra de estado: al arrastrar una
+ * pieza sobre su cartel, nombrar el cartel correcto es la respuesta entera.
+ *
+ * Se ejerce el gesto de verdad (coger la pieza de la mesa y llevarla al cartel)
+ * porque el aviso solo sale con el puntero encima del hueco, y se comprueba además
+ * que el puntero sí llegó a estar encima: sin eso, la negativa pasaría sin haber
+ * probado nada.
+ */
+async function examIdentifyHint() {
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const cartas = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('examen fase 1: menú de modos visible', cartas.length >= 2, `${cartas.length}`)
+  if (cartas.length < 2) {
+    await page.close()
+    return
+  }
+  await cartas[1].click() // examen
+  await page.waitForSelector('.badge--exam', { timeout: 60000 })
+  await wait(1500)
+
+  const estado = (clave) =>
+    page.evaluate(
+      (clave) =>
+        import('/src/store/useGameStore.ts').then(
+          (m) => m.useGameStore.getState()[clave],
+        ),
+      clave,
+    )
+  const barra = () =>
+    page.$eval('.statusbar span:last-child', (el) => el.textContent.trim()).catch(() => '')
+
+  const mayor = await page.evaluate(() =>
+    import('/src/data/components.ts').then((m) => {
+      const def = [...m.COMPONENTS_BY_STAGE.identify].sort((a, b) => b.size - a.size)[0]
+      return { id: def.id, name: def.name }
+    }),
+  )
+  const pieza = await pantallaFase1(page, mayor.id, 'pieza')
+  const cartel = await pantallaFase1(page, mayor.id, 'cartel')
+  check(
+    'examen fase 1: la pieza y su cartel se localizan en pantalla',
+    !!pieza && !!cartel,
+    `${mayor.name}: ${JSON.stringify(pieza)} · cartel ${JSON.stringify(cartel)}`,
+  )
+  if (!pieza || !cartel) {
+    await page.close()
+    return
+  }
+
+  // Coger la pieza falla si el clic cae en el hueco entre geometrías, así que se
+  // prueban los mismos desplazamientos que usa la sección del zoom.
+  let visto = null
+  for (const [dx, dy] of [
+    [0, 0],
+    [0, -10],
+    [0, 10],
+    [-10, 0],
+    [10, 0],
+    [-14, -14],
+    [14, 14],
+  ]) {
+    await page.mouse.move(pieza.x + dx, pieza.y + dy)
+    await page.mouse.down()
+    await wait(300)
+    if (!(await estado('dragging'))) {
+      await page.mouse.up()
+      await wait(200)
+      continue
+    }
+    await page.mouse.move(pieza.x + dx, pieza.y + dy - 40)
+    await wait(250)
+    await page.mouse.move(cartel.x, cartel.y)
+    await wait(500)
+    visto = { hover: await estado('hoverMountId'), barra: await barra() }
+    await page.mouse.up()
+    await wait(600)
+    break
+  }
+
+  check('examen fase 1: la pieza se llega a coger y arrastrar', !!visto, `${mayor.name}`)
+  check(
+    'examen fase 1: el puntero llegó a estar sobre el cartel correcto',
+    !!visto?.hover,
+    `${visto?.hover ?? 'sin hueco'} · «${visto?.barra ?? 'sin barra'}»`,
+  )
+  check(
+    'examen fase 1: la barra de estado no nombra el cartel',
+    !!visto?.hover && !/Suelta aquí/.test(visto.barra),
+    `«${visto?.barra ?? ''}»`,
+  )
+  check(
+    'examen fase 1: la barra dice la instrucción de siempre',
+    visto?.barra === 'Lleva la pieza hasta el hueco correcto.',
+    `«${visto?.barra ?? ''}»`,
+  )
+  check('examen fase 1: sin errores de página', errors.length === 0, errors.join(' | '))
+  await page.close()
 }
 
 /**
@@ -2388,6 +2577,7 @@ const SECTIONS = [
   ['loadingBar', loadingBar],
   ['stageBanner', stageBanner],
   ['componentZoom', componentZoom],
+  ['examIdentifyHint', examIdentifyHint],
 ]
 
 const ONLY = process.env.ONLY

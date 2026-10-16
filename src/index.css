@@ -769,6 +769,13 @@ button {
   z-index: 11;
 }
 
+/* Sin pieza seleccionada el panel se queda montado pero invisible: así su lienzo
+   (y su contexto WebGL) sobrevive a las 18 colocaciones de la fase 1 y no se
+   crea uno nuevo en cada una (R4-001). */
+.zoom--oculto {
+  visibility: hidden;
+}
+
 .zoom__view {
   position: relative;
   height: 132px;

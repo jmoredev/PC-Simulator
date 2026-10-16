@@ -53,30 +53,30 @@ function Encuadre({ children }: { children: ReactNode }) {
  * mesa y algunas —los conectores— se ven muy pequeñas: aquí se ven enteras.
  *
  * Para los conectores con imagen propia se enseña el PNG (más nítido que el
- * dibujo 3D) y para el resto la vista 3D de cerca. **El lienzo se queda montado
- * siempre**, aunque se enseñe el PNG: montarlo y desmontarlo al cambiar de pieza
- * creaba un contexto WebGL nuevo en cada ciclo y, alternando en la fase 1, se
- * puede agotar el límite del navegador.
+ * dibujo 3D) y para el resto la vista 3D de cerca. **El panel entero se queda
+ * montado durante toda la fase 1**, también sin pieza seleccionada: montarlo y
+ * desmontarlo con cada colocación (18 por partida) creaba un contexto WebGL por
+ * ciclo, y el que el navegador se lleva por agotamiento es el más antiguo, el de
+ * la escena principal. Sin selección se oculta (`zoom--oculto`), que mantiene el
+ * lienzo y su tamaño.
  *
  * En examen no se escribe el nombre: decir qué pieza es también es una pista
  * (misma regla que en la barra de estado).
  */
-export function ComponentZoom({ id, mode }: { id: string; mode: GameMode }) {
-  const def = COMPONENT_BY_ID[id]
+export function ComponentZoom({ id, mode }: { id: string | null; mode: GameMode }) {
+  const def = id ? COMPONENT_BY_ID[id] : undefined
   /** Pieza cuyo PNG no cargó: se cae a la vista 3D en vez de dejar la imagen rota. */
   const [pngRoto, setPngRoto] = useState<string | null>(null)
 
-  if (!def) return null
-
-  const conImagen = def.category === 'conector' ? connectorImageUrl(def.kind) : undefined
-  const imagen = pngRoto === def.id ? undefined : conImagen
+  const conImagen = def?.category === 'conector' ? connectorImageUrl(def.kind) : undefined
+  const imagen = def && pngRoto !== def.id ? conImagen : undefined
   // La pieza se dibuja a un tamaño parecido en la ventanita sea cual sea su
   // `size` (los modelos se autoajustan a `def.size`; los conectores procedurales
   // son más pequeños y se agrandan con este factor).
-  const scale = 1.15 / Math.max(0.12, def.size)
+  const scale = def ? 1.15 / Math.max(0.12, def.size) : 1
 
   return (
-    <div className="zoom">
+    <div className={def ? 'zoom' : 'zoom zoom--oculto'}>
       <div className="zoom__view">
         <div className={imagen ? 'zoom__canvas zoom__canvas--tapado' : 'zoom__canvas'}>
           <Canvas camera={{ position: [1.8, 2.9, 3.4], fov: 30 }} dpr={[1, 2]} frameloop="demand">
@@ -86,16 +86,18 @@ export function ComponentZoom({ id, mode }: { id: string; mode: GameMode }) {
             <ambientLight intensity={1.15} />
             <directionalLight position={[2, 3, 4]} intensity={1.9} />
             <directionalLight position={[-2, 1, -3]} intensity={0.7} />
-            <Suspense fallback={null}>
-              <Encuadre key={def.id}>
-                <group scale={scale}>
-                  <ComponentVisual def={def} />
-                </group>
-              </Encuadre>
-            </Suspense>
+            {def && (
+              <Suspense fallback={null}>
+                <Encuadre key={def.id}>
+                  <group scale={scale}>
+                    <ComponentVisual def={def} />
+                  </group>
+                </Encuadre>
+              </Suspense>
+            )}
           </Canvas>
         </div>
-        {imagen && (
+        {def && imagen && (
           <img
             className="zoom__img"
             src={imagen}
@@ -105,7 +107,7 @@ export function ComponentZoom({ id, mode }: { id: string; mode: GameMode }) {
           />
         )}
       </div>
-      {mode === 'practice' && <span className="zoom__name">{def.name}</span>}
+      {def && mode === 'practice' && <span className="zoom__name">{def.name}</span>}
     </div>
   )
 }
