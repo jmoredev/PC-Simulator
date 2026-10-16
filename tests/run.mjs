@@ -102,6 +102,27 @@ function findChrome() {
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /**
+ * Desplazamientos que prueba el arnés para coger una pieza de la mesa (fase 1). El
+ * punto que se calcula es el centro de la pieza según su `size`, pero la pieza
+ * dibujada la encoge `trayScaleFor` a 0,75 como mucho y en las anchas (el monitor)
+ * su centro queda bastante por debajo: sin los desplazamientos hacia abajo, coger
+ * el monitor falla y las comprobaciones dependientes caen como si fuera producto.
+ */
+const COGER_PIEZA = [
+  [0, 0],
+  [0, -10],
+  [0, 10],
+  [-10, 0],
+  [10, 0],
+  [0, -20],
+  [0, 20],
+  [-20, 0],
+  [20, 0],
+  [-14, -14],
+  [14, 14],
+]
+
+/**
  * ¿El elemento existe Y ocupa sitio en pantalla? La presencia en el DOM no dice
  * nada: un panel plegado o una tarjeta sin montar siguen existiendo en el HTML.
  */
@@ -2222,58 +2243,72 @@ async function stageBanner() {
 
 /* ---------- 17. La pieza seleccionada se ve ampliada en la fase 1 ---------- */
 /**
- * Punto de pantalla de la fase 1 donde se dibuja algo del mundo: `'pieza'` es la
- * pieza de la mesa del alumno y `'cartel'` es el cartel que le toca (los huecos de
- * la fase 1, `MOUNTS_BY_STAGE.identify`).
- *
- * La cámara de la fase 1 es fija y la declara `stages.ts`, pero el arnés no tiene
- * la instancia del lienzo: la proyección se hace a mano con su posición, su
- * objetivo y su fov. El `y` de la pieza no es `def.size / 2`: la pieza dibujada no
- * mide lo que su `size` (la encoge `trayScaleFor` hasta 0,75), y apuntar a la mitad
- * de su `size` cae muy por encima de ella.
+ * Proyecta puntos del mundo de la fase 1 a la pantalla. La cámara de la fase 1 es
+ * fija y la declara `stages.ts`, pero el arnés no tiene la instancia del lienzo: la
+ * proyección se hace a mano con su posición, su objetivo y su fov (45°).
  */
-async function pantallaFase1(page, id, que) {
+async function proyectaFase1(page, puntos) {
+  return page.evaluate(async (puntos) => {
+    const st = await import('/src/data/stages.ts')
+    const stage = st.STAGES[0]
+    const [px, py, pz] = stage.camera.position
+    const [tx, ty, tz] = stage.camera.target
+    const n = Math.hypot(tx - px, ty - py, tz - pz)
+    const f = [(tx - px) / n, (ty - py) / n, (tz - pz) / n]
+    const r = [-f[2], 0, f[0]]
+    const nr = Math.hypot(...r)
+    r[0] /= nr
+    r[2] /= nr
+    const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]]
+    const tan = Math.tan((45 * Math.PI) / 180 / 2)
+    const W = window.innerWidth
+    const H = window.innerHeight
+    return puntos.map(([x, y, z]) => {
+      const d = [x - px, y - py, z - pz]
+      const xv = d[0] * r[0] + d[1] * r[1] + d[2] * r[2]
+      const yv = d[0] * u[0] + d[1] * u[1] + d[2] * u[2]
+      const zv = d[0] * f[0] + d[1] * f[1] + d[2] * f[2]
+      return { x: (xv / (zv * tan * (W / H)) + 1) / 2 * W, y: (1 - yv / (zv * tan)) / 2 * H }
+    })
+  }, puntos)
+}
+
+/**
+ * Punto del mundo de la fase 1: `'pieza'` es la pieza de la mesa del alumno y
+ * `'cartel'` es el cartel que le toca (los huecos de la fase 1,
+ * `MOUNTS_BY_STAGE.identify`), desplazado `dz` en profundidad si se pide (para
+ * probar sueltas cerca del borde). El `y` de la pieza no es `def.size / 2`: la
+ * pieza dibujada no mide lo que su `size` (la encoge `trayScaleFor` hasta 0,75) y
+ * apuntar a la mitad de su `size` cae muy por encima de ella.
+ */
+async function puntoFase1(page, id, que, dz = 0) {
   return page.evaluate(
-    async ({ id, que }) => {
+    async ({ id, que, dz }) => {
       const c = await import('/src/data/components.ts')
       const st = await import('/src/data/stages.ts')
       const stage = st.STAGES[0]
       const def = c.COMPONENT_BY_ID[id]
-      let mundo
       if (que === 'cartel') {
         const mount = c.MOUNTS_BY_STAGE.identify.find((m) => m.accepts.includes(def.kind))
         if (!mount) return null
-        mundo = mount.position
-      } else {
-        mundo = [
-          def.identifyPos[0],
-          stage.tray.surfaceY + Math.min(def.size, 0.75) / 2,
-          def.identifyPos[1],
-        ]
+        return [mount.position[0], mount.position[1], mount.position[2] + dz]
       }
-      const [px, py, pz] = stage.camera.position
-      const [tx, ty, tz] = stage.camera.target
-      const n = Math.hypot(tx - px, ty - py, tz - pz)
-      const f = [(tx - px) / n, (ty - py) / n, (tz - pz) / n]
-      const r = [-f[2], 0, f[0]]
-      const nr = Math.hypot(...r)
-      r[0] /= nr
-      r[2] /= nr
-      const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]]
-      const d = [mundo[0] - px, mundo[1] - py, mundo[2] - pz]
-      const xv = d[0] * r[0] + d[1] * r[1] + d[2] * r[2]
-      const yv = d[0] * u[0] + d[1] * u[1] + d[2] * u[2]
-      const zv = d[0] * f[0] + d[1] * f[1] + d[2] * f[2]
-      const tan = Math.tan((45 * Math.PI) / 180 / 2)
-      const W = window.innerWidth
-      const H = window.innerHeight
-      return {
-        x: (xv / (zv * tan * (W / H)) + 1) / 2 * W,
-        y: (1 - yv / (zv * tan)) / 2 * H,
-      }
+      return [
+        def.identifyPos[0],
+        stage.tray.surfaceY + Math.min(def.size, 0.75) / 2,
+        def.identifyPos[1],
+      ]
     },
-    { id, que },
+    { id, que, dz },
   )
+}
+
+/** Punto de pantalla de una pieza de la mesa o del cartel que le toca. */
+async function pantallaFase1(page, id, que, dz = 0) {
+  const mundo = await puntoFase1(page, id, que, dz)
+  if (!mundo) return null
+  const [punto] = await proyectaFase1(page, [mundo])
+  return punto
 }
 
 async function componentZoom() {
@@ -2414,17 +2449,7 @@ async function componentZoom() {
   )
   const punto = await pantallaFase1(examen.page, mayor.id, 'pieza')
   let cogida = false
-  for (const [dx, dy] of [
-    [0, 0],
-    [0, -10],
-    [0, 10],
-    [-10, 0],
-    [10, 0],
-    [-14, -14],
-    [14, 14],
-    [0, -20],
-    [0, 20],
-  ]) {
+  for (const [dx, dy] of COGER_PIEZA) {
     await examen.page.mouse.click(punto.x + dx, punto.y + dy)
     await wait(500)
     if (await zoomPanelVisible(examen.page)) {
@@ -2507,17 +2532,9 @@ async function examIdentifyHint() {
   }
 
   // Coger la pieza falla si el clic cae en el hueco entre geometrías, así que se
-  // prueban los mismos desplazamientos que usa la sección del zoom.
+  // prueban los mismos desplazamientos que usa el resto de la fase 1 (`COGER_PIEZA`).
   let visto = null
-  for (const [dx, dy] of [
-    [0, 0],
-    [0, -10],
-    [0, 10],
-    [-10, 0],
-    [10, 0],
-    [-14, -14],
-    [14, 14],
-  ]) {
+  for (const [dx, dy] of COGER_PIEZA) {
     await page.mouse.move(pieza.x + dx, pieza.y + dy)
     await page.mouse.down()
     await wait(300)
@@ -2557,6 +2574,256 @@ async function examIdentifyHint() {
 }
 
 /**
+ * Los carteles de la fase 1. Cada cartel acepta un solo tipo de pieza, así que la
+ * pieza NUNCA se coloca en el cartel equivocado: el fallo que reportó el alumnado
+ * es otro. `endDrag` cuenta un fallo cuando no hay cartel correcto a `snapRadius`
+ * y sí uno AJENO a `wrongRadius`, de modo que la «banda que cuenta el vecino»
+ * existe mientras dos carteles estén más cerca que `snapRadius + wrongRadius`
+ * (0,6 + 0,6 = 1,2 u).
+ *
+ * Se comprueban las dos caras: la regla sobre el reparto (geométrica) y el efecto
+ * observable en examen —soltar 0,7 u hacia el cartel vecino más próximo— que es lo
+ * que hacía perder puntos.
+ */
+async function identifyCards() {
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const cartas = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check('carteles: menú de modos visible', cartas.length >= 2, `${cartas.length}`)
+  if (cartas.length < 2) {
+    await page.close()
+    return
+  }
+  await wait(600)
+
+  const reparto = await page.evaluate(async () => {
+    const c = await import('/src/data/components.ts')
+    const st = await import('/src/data/stages.ts')
+    const stage = st.STAGES[0]
+    const mounts = c.MOUNTS_BY_STAGE.identify
+    const [w, d] = mounts[0].size
+    let minPlano = Infinity
+    let minX = Infinity
+    let minZ = Infinity
+    for (let i = 0; i < mounts.length; i++) {
+      for (let j = i + 1; j < mounts.length; j++) {
+        const dx = Math.abs(mounts[i].position[0] - mounts[j].position[0])
+        const dz = Math.abs(mounts[i].position[2] - mounts[j].position[2])
+        minPlano = Math.min(minPlano, Math.hypot(dx, dz))
+        if (dz < 0.01) minX = Math.min(minX, dx)
+        if (dx < 0.01) minZ = Math.min(minZ, dz)
+      }
+    }
+    return {
+      cuantos: mounts.length,
+      piezas: c.COMPONENTS_BY_STAGE.identify.length,
+      snap: Math.max(...mounts.map((m) => m.snapRadius)),
+      wrong: stage.drop.wrongRadius,
+      minPlano,
+      minX,
+      minZ,
+      bordeTrasero: Math.min(...mounts.map((m) => m.position[2])) - d / 2,
+      mesaTrasera: stage.bench.center[1] - stage.bench.depth / 2,
+      esquinas: mounts.map((m) => [
+        [m.position[0] - w / 2, 0.09, m.position[2] - d / 2],
+        [m.position[0] + w / 2, 0.09, m.position[2] - d / 2],
+        [m.position[0] - w / 2, 0.09, m.position[2] + d / 2],
+        [m.position[0] + w / 2, 0.09, m.position[2] + d / 2],
+      ]),
+    }
+  })
+
+  check(
+    'carteles: hay uno por cada pieza',
+    reparto.cuantos === reparto.piezas,
+    `${reparto.cuantos} carteles para ${reparto.piezas} piezas`,
+  )
+  check(
+    'carteles: ningún cartel ajeno cabe en la banda de fallo del suyo',
+    reparto.minPlano >= reparto.snap + reparto.wrong,
+    `separación mínima ${reparto.minPlano.toFixed(2)} u (X ${reparto.minX.toFixed(2)}, Z ${reparto.minZ.toFixed(2)}) frente a snapRadius + wrongRadius = ${(reparto.snap + reparto.wrong).toFixed(2)} u`,
+  )
+  check(
+    'carteles: la fila de atrás cabe en la mesa',
+    reparto.bordeTrasero >= reparto.mesaTrasera,
+    `borde trasero ${reparto.bordeTrasero.toFixed(2)} u, la mesa llega a ${reparto.mesaTrasera.toFixed(2)} u`,
+  )
+
+  // Hueco en pantalla entre los rectángulos de dos tarjetas vecinas: es lo que se
+  // ve («están muy pegadas»). El umbral es el medido con este reparto (31 px); con
+  // las filas a 0,95 u eran 23 px.
+  const proyectadas = await proyectaFase1(page, reparto.esquinas.flat())
+  const cajas = reparto.esquinas.map((_, i) => {
+    const pts = proyectadas.slice(i * 4, i * 4 + 4)
+    const xs = pts.map((p) => p.x)
+    const ys = pts.map((p) => p.y)
+    return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) }
+  })
+  let hueco = Infinity
+  for (let i = 0; i < cajas.length; i++) {
+    for (let j = i + 1; j < cajas.length; j++) {
+      const dx = Math.max(0, Math.max(cajas[j].x0 - cajas[i].x1, cajas[i].x0 - cajas[j].x1))
+      const dy = Math.max(0, Math.max(cajas[j].y0 - cajas[i].y1, cajas[i].y0 - cajas[j].y1))
+      hueco = Math.min(hueco, Math.hypot(dx, dy))
+    }
+  }
+  check(
+    'carteles: dos tarjetas vecinas no se pegan en pantalla',
+    hueco >= 28,
+    `${Math.round(hueco)} px de hueco entre las dos más próximas; hacen falta 28`,
+  )
+  check('carteles: el reparto se mide sin errores de página', errors.length === 0, errors.join(' | '))
+  await page.close()
+
+  // El efecto que reportó el alumnado, en examen y con el ratón: se elige la pieza
+  // cuyo cartel tiene al vecino MÁS próximo (con el reparto anterior son las filas a
+  // 0,95 u) y se suelta 0,7 u hacia él, que es media tarjeta más allá de su borde.
+  const examen = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const cartasExamen = await examen.page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => examen.page.$$('button.mode-card'))
+    .catch(() => [])
+  check('carteles: el examen arranca', cartasExamen.length >= 2, `${cartasExamen.length} tarjetas`)
+  if (cartasExamen.length < 2) {
+    await examen.page.close()
+    return
+  }
+  await cartasExamen[1].click()
+  await examen.page.waitForSelector('.badge--exam', { timeout: 60000 })
+  await wait(1500)
+
+  const objetivo = await examen.page.evaluate(async () => {
+    const c = await import('/src/data/components.ts')
+    const mounts = c.MOUNTS_BY_STAGE.identify
+    let mejor = null
+    for (const def of c.COMPONENTS_BY_STAGE.identify) {
+      const m = mounts.find((o) => o.accepts.includes(def.kind))
+      if (!m) continue
+      let best = Infinity
+      let dir = null
+      for (const otro of mounts) {
+        if (otro === m) continue
+        const dx = otro.position[0] - m.position[0]
+        const dz = otro.position[2] - m.position[2]
+        const d = Math.hypot(dx, dz)
+        if (d < best) {
+          best = d
+          dir = [dx / d, dz / d]
+        }
+      }
+      if (!mejor || best < mejor.distancia) {
+        mejor = { id: def.id, name: def.name, distancia: best, dir, cartel: m.position }
+      }
+    }
+    return mejor
+  })
+  const cerca = {
+    x: objetivo.cartel[0] + objetivo.dir[0] * 0.7,
+    z: objetivo.cartel[2] + objetivo.dir[1] * 0.7,
+  }
+  const pieza = await pantallaFase1(examen.page, objetivo.id, 'pieza')
+  const [lejos] = await proyectaFase1(examen.page, [[cerca.x, objetivo.cartel[1], cerca.z]])
+  const [encima] = await proyectaFase1(examen.page, [objetivo.cartel])
+  check(
+    'carteles: la pieza, su cartel y el punto vecino se localizan en pantalla',
+    !!pieza && !!lejos && !!encima,
+    `${objetivo.name}: pieza ${JSON.stringify(pieza)}, a 0,7 u ${JSON.stringify(lejos)} (vecino a ${objetivo.distancia.toFixed(2)} u)`,
+  )
+  if (!pieza || !lejos || !encima) {
+    await examen.page.close()
+    return
+  }
+
+  const juego = () =>
+    examen.page.evaluate(() =>
+      import('/src/store/useGameStore.ts').then((m) => {
+        const s = m.useGameStore.getState()
+        return {
+          errors: s.errors,
+          colocadas: Object.keys(s.placed).length,
+          filas: s.misses.length,
+        }
+      }),
+    )
+  const puntos = () =>
+    examen.page.$$eval('.topbar .badge', (els) =>
+      els.map((el) => el.textContent ?? '').find((t) => t.startsWith('Puntos:')) ?? '',
+    )
+
+  // Coger la pieza falla si el clic cae en el hueco entre geometrías: mismos
+  // desplazamientos que usan las otras secciones de la fase 1.
+  const arrastra = async (destino) => {
+    for (const [dx, dy] of COGER_PIEZA) {
+      await examen.page.mouse.move(pieza.x + dx, pieza.y + dy)
+      await examen.page.mouse.down()
+      await wait(300)
+      const cogida = await examen.page.evaluate(() =>
+        import('/src/store/useGameStore.ts').then((m) => m.useGameStore.getState().dragging),
+      )
+      if (!cogida) {
+        await examen.page.mouse.up()
+        await wait(200)
+        continue
+      }
+      await examen.page.mouse.move(pieza.x + dx, pieza.y + dy - 40)
+      await wait(250)
+      await examen.page.mouse.move(destino.x, destino.y)
+      await wait(500)
+      await examen.page.mouse.up()
+      await wait(800)
+      return true
+    }
+    return false
+  }
+
+  const antes = await juego()
+  const puntosAntes = await puntos()
+  const soltado = await arrastra(lejos)
+  const despues = await juego()
+  const puntosDespues = await puntos()
+  check(
+    'carteles: la pieza se coge y se suelta a 0,7 u de su cartel',
+    soltado,
+    `${objetivo.name}`,
+  )
+  check(
+    'carteles: soltar pasado el borde no cuenta el cartel de al lado',
+    despues.errors === antes.errors && despues.filas === antes.filas,
+    `fallos ${antes.errors} → ${despues.errors}, filas del resumen ${antes.filas} → ${despues.filas}`,
+  )
+  check(
+    'carteles: soltar pasado el borde no resta puntos',
+    puntosDespues === puntosAntes,
+    `${puntosAntes} → ${puntosDespues}`,
+  )
+  check(
+    'carteles: la pieza no se coloca en el cartel de al lado',
+    despues.colocadas === antes.colocadas,
+    `${antes.colocadas} → ${despues.colocadas} colocadas`,
+  )
+
+  // Control: sobre su propio cartel sí coloca y no cuesta nada, tomando la línea
+  // base DESPUÉS de la suelta anterior para que mida solo lo que hace esta. Sin el
+  // control, la negativa de arriba pasaría aunque el arrastre no soltara nada.
+  const colocado = await arrastra(encima)
+  const final = await juego()
+  check(
+    'carteles: sobre su propio cartel la pieza se coloca',
+    colocado && final.colocadas === despues.colocadas + 1,
+    `${despues.colocadas} → ${final.colocadas} colocadas`,
+  )
+  check(
+    'carteles: colocar bien no cuesta ningún fallo',
+    final.errors === despues.errors,
+    `${despues.errors} → ${final.errors}`,
+  )
+  check('carteles: sin errores de página', examen.errors.length === 0, examen.errors.join(' | '))
+  await examen.page.close()
+}
+
+/**
  * Secciones de la pasada, en orden. `ONLY=examSummary,loadingBar` acota la
  * ejecución a las nombradas (para falsar un cambio sin pagar la pasada entera).
  */
@@ -2578,6 +2845,7 @@ const SECTIONS = [
   ['stageBanner', stageBanner],
   ['componentZoom', componentZoom],
   ['examIdentifyHint', examIdentifyHint],
+  ['identifyCards', identifyCards],
 ]
 
 const ONLY = process.env.ONLY
