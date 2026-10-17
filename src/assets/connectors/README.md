@@ -33,3 +33,10 @@ El nombre debe ser el `kind` del conector. Estos son los que se usan:
 
 Si un PNG falta, ese conector se dibuja con la forma procedural de
 `src/three/Placeholder.tsx` y el simulador sigue funcionando.
+
+## Créditos
+
+El autor, la fuente, la licencia y los cambios de cada imagen están en
+[`CREDITS.md`](../../CREDITS.md) y en `src/data/credits.ts`. Ojo con
+`usb-c.png`: es una foto de Wikimedia Commons con licencia **CC BY-SA 4.0**, así
+que hay que seguir citando a su autor y el archivo se queda con esa licencia.

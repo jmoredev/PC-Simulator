@@ -1,5 +1,9 @@
 # Créditos y licencias
 
+El **código** del simulador es [MIT](../LICENSE) (usar, copiar y modificar citando
+el original). Lo de abajo son los **recursos de terceros**, que mantienen su propia
+licencia.
+
 Los **modelos 3D** y las **imágenes de los conectores** de este proyecto son obra
 de sus autores y se usan bajo la licencia que se indica en la tabla. Se pueden
 consultar también dentro del simulador, en **Menú → Créditos y licencias**.
@@ -64,6 +68,11 @@ Todos los modelos 3D proceden de [Sketchfab](https://sketchfab.com) y son
 | `displayport.png` | Conector DisplayPort | | | | |
 | `dvi.png` | Conector DVI | | | | |
 | `vga.png` | Conector VGA | | | | |
+| `usb-c.png` | Conector USB-C | Santeri Viinamäki | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:USB_Type-C_plug_20170626_crop.jpg) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | Recortada, girada y con el fondo quitado (PNG con transparencia) |
+
+> La imagen del USB-C es una **foto** de Wikimedia Commons: al ser **CC BY-SA**,
+> el archivo `usb-c.png` (versión recortada y con fondo transparente) se
+> distribuye con la misma licencia, y hay que seguir citando a su autor.
 
 ## Otras librerías
 

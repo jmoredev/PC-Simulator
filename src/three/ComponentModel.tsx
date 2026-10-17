@@ -11,6 +11,35 @@ import { Placeholder } from './Placeholder'
 const IDENTITY: Vec3 = [0, 0, 0]
 
 /**
+ * Caja envolvente de un grupo **en su propio espacio**.
+ *
+ * `Box3.setFromObject` mide en coordenadas de MUNDO, así que incluye dónde está
+ * colocada la pieza: al centrar con ese resultado, la pieza acababa en el origen
+ * del mundo —el centro de la mesa— en vez de en su celda. Solo se notaba en las
+ * piezas procedurales (los cuatro conectores sin PNG ni .glb), que son las únicas
+ * que pasan por `Align` colocadas fuera del origen: los `.glb` se ajustan dentro
+ * de `GltfModel` y los conectores con imagen son un plano que no se alinea.
+ *
+ * Se mide multiplicando la caja de cada malla por su matriz relativa al grupo
+ * (mundo → grupo), que es lo que ignora a los padres.
+ */
+function localBox(group: THREE.Object3D): THREE.Box3 {
+  const box = new THREE.Box3()
+  const alGrupo = new THREE.Matrix4().copy(group.matrixWorld).invert()
+  const matriz = new THREE.Matrix4()
+  group.traverse((obj) => {
+    const mesh = obj as THREE.Mesh
+    if (!mesh.isMesh || !mesh.geometry) return
+    mesh.geometry.computeBoundingBox()
+    const bb = mesh.geometry.boundingBox
+    if (!bb) return
+    matriz.multiplyMatrices(alGrupo, mesh.matrixWorld)
+    box.union(bb.clone().applyMatrix4(matriz))
+  })
+  return box
+}
+
+/**
  * Gira un objeto ligero (placeholder) y lo reajusta: centrado en XZ y con la
  * base en y=0. Los modelos .glb se ajustan dentro de GltfModel, que memoriza
  * el cálculo para no recorrer la geometría en cada frame.
@@ -22,8 +51,9 @@ function Align({ rotation, children }: { rotation: Vec3; children: ReactNode }) 
     if (!group) return
     group.rotation.set(...rotation)
     group.position.set(0, 0, 0)
-    group.updateMatrixWorld(true)
-    const box = new THREE.Box3().setFromObject(group)
+    // Los padres primero: la caja local necesita la matriz de mundo del grupo.
+    group.updateWorldMatrix(true, true)
+    const box = localBox(group)
     const center = box.getCenter(new THREE.Vector3())
     group.position.set(-center.x, -box.min.y, -center.z)
     group.updateMatrixWorld(true)

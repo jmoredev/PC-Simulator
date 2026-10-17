@@ -160,4 +160,13 @@ export const CREDITS: Credit[] = [
   { file: 'connectors/displayport.png', what: 'Conector DisplayPort' },
   { file: 'connectors/dvi.png', what: 'Conector DVI' },
   { file: 'connectors/vga.png', what: 'Conector VGA' },
+  {
+    file: 'connectors/usb-c.png',
+    what: 'Conector USB-C',
+    author: 'Santeri Viinamäki',
+    source: 'https://commons.wikimedia.org/wiki/File:USB_Type-C_plug_20170626_crop.jpg',
+    license: 'CC BY-SA 4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    changes: 'Recortada, girada y con el fondo quitado (PNG con transparencia). Al ser CC BY-SA, el archivo sigue bajo la misma licencia.',
+  },
 ]
