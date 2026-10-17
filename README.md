@@ -6,6 +6,13 @@ didáctica para cada componente.
 
 ![modos](https://img.shields.io/badge/modos-práctica%20%7C%20examen-38bdf8)
 
+**Repositorio:** <https://github.com/jmoredev/PC-Simulator> — si quieres
+proponer un cambio, mira [Cómo colaborar](#cómo-colaborar).
+
+<a href="https://github.com/Gentleman-Programming/gentle-ai">
+  <img width="220" src="https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/docs/assets/brand/built-with-gentle-ai.png" alt="Built with Gentle-AI" />
+</a>
+
 ## Versión publicada
 
 La versión online para el aula se publica desde la rama `main` en
@@ -90,6 +97,9 @@ npm run models:optimize   # comprime los .glb de public/assets/models
 - **`develop`** → rama de trabajo; **todo el desarrollo va aquí**.
 - Ramas cortas desde `develop` con prefijo `feat/`, `fix/` o `docs/`.
 
+Si vas a proponer un cambio para que se revise, sigue [Cómo
+colaborar](#cómo-colaborar): rama propia y *pull request* hacia `main`.
+
 ```bash
 git clone https://github.com/jmoredev/PC-Simulator.git
 cd PC-Simulator
@@ -99,6 +109,41 @@ npm install
 
 Las decisiones de diseño, la estructura de carpetas y las convenciones están
 documentadas en [`AGENTS.md`](AGENTS.md).
+
+## Cómo colaborar
+
+El proyecto vive en <https://github.com/jmoredev/PC-Simulator> y **todo cambio
+pasa por una revisión** antes de llegar a la versión publicada: se propone en una
+rama y se revisa en un *pull request* hacia `main`.
+
+1. **Trabaja siempre en una rama**, nunca directamente sobre `main`:
+
+   ```bash
+   git clone https://github.com/jmoredev/PC-Simulator.git
+   cd PC-Simulator
+   git checkout -b feat/mi-cambio     # o fix/..., docs/...
+   ```
+
+2. **Haz el cambio y pruébalo** antes de proponerlo:
+
+   ```bash
+   npm run build     # compila sin errores
+   npm run lint      # sin avisos
+   node tests/run.mjs   # arnés de pruebas (necesita el servidor de dev levantado)
+   ```
+
+3. **Abre un *pull request* hacia `main`**, no hacia otra rama, explicando qué
+   cambia y por qué. El responsable del proyecto lo revisa antes de fusionarlo;
+   hasta entonces el cambio vive en tu rama (y en `main` no entra nada sin
+   revisar).
+
+4. **Si no tienes permiso de escritura en el repositorio**, haz antes un *fork*
+   con el botón **Fork** de GitHub y abre el pull request desde tu copia a
+   `main` del repositorio original.
+
+Si el cambio añade o cambia algo visible (una fase, una pieza, un texto de la
+interfaz), cuenta también qué hay que mirar para comprobarlo: es lo que se
+revisa en el pull request.
 
 ## Pruebas
 
@@ -244,6 +289,17 @@ src/
 - [Three.js](https://threejs.org/) con [@react-three/fiber](https://r3f.docs.pmnd.rs/)
   y [@react-three/drei](https://github.com/pmndrs/drei)
 - [Zustand](https://zustand.docs.pmnd.rs/) para el estado
+
+## Licencia
+
+El **código** de este proyecto (todo lo que hay en el repositorio salvo los
+recursos de terceros) es **MIT**: cualquiera puede usarlo, copiarlo y modificarlo,
+**citando el original** (conservar el aviso de copyright y la licencia, ver
+[`LICENSE`](LICENSE)).
+
+Los **modelos 3D y las imágenes** de terceros **no** entran en esa licencia: cada
+archivo mantiene la suya (CC BY, CC BY-SA…), con su autor y su fuente, en
+[`CREDITS.md`](CREDITS.md).
 
 ## Créditos y licencias
 
