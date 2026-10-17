@@ -39,6 +39,13 @@ export const STAGES: Stage[] = [
     // lo que ocupan (0,75). El desplazamiento aleatorio se deriva de estas
     // separaciones (`trayJitter`), así que ensanchar la rejilla las separa.
     //
+    // Las columnas de esta fase NO son las de aquí abajo: la fase 1 tiene una
+    // pieza por cada tipo de conector de la placa, así que su número cambia de
+    // una placa a otra (18 piezas con ocho tipos, 19 si la placa trae uno más) y
+    // `components.ts` las deriva del catálogo (`trayCols`). Estos 6 valores son
+    // los que salen para 18 piezas; con 19 la rejilla pasa a 7 columnas y las
+    // piezas siguen dentro de ±4. Las filas SÍ son estas.
+    //
     // 6 columnas × 3 filas = 18 celdas para 18 piezas, con las filas a 2,1 u: dos
     // piezas de la misma columna —que la cámara oblicua dibuja una detrás de
     // otra— quedan a 1,4 u en profundidad (~110 px en pantalla) en vez de a 0,9.

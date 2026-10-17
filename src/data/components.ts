@@ -42,13 +42,6 @@ export const BOARD_MODEL = {
   rotation: ACTIVE_BOARD.rotation,
 }
 
-function traySlot(stage: StageId, indexInStage: number): [number, number] {
-  const { cols, rows } = STAGE_BY_ID[stage].tray
-  const col = Math.floor(indexInStage / rows.length)
-  const row = indexInStage % rows.length
-  return [cols[Math.min(col, cols.length - 1)], rows[row]]
-}
-
 /**
  * Dimensión mayor con la que se dibuja una pieza en la mesa. Los modelos se
  * normalizan a `def.size` y luego se escalan para no pasar de 0,75
@@ -57,13 +50,89 @@ function traySlot(stage: StageId, indexInStage: number): [number, number] {
  */
 export const TRAY_MAX_SPAN = 0.75
 
+/** Aire que se deja como mínimo entre dos piezas vecinas de la mesa. */
+const TRAY_MIN_GAP = 0.15
+
 /** Separación más pequeña entre dos líneas de una rejilla (columnas o filas). */
 function gridGap(lines: number[]): number {
   return Math.min(...lines.slice(1).map((v, i) => Math.abs(v - lines[i])))
 }
 
-/** Aire que se deja como mínimo entre dos piezas vecinas de la mesa. */
-const TRAY_MIN_GAP = 0.15
+/** Cómo se reparten las columnas de una bandeja. */
+interface TrayGrid {
+  /** Nombre del reparto, para el aviso de consola. */
+  name: string
+  /** Separación entre columnas mientras caben todas. */
+  pitch: number
+  /** Anchura disponible para el reparto, que queda centrado en 0. */
+  width: number
+  /** Suelo de la separación entre columnas: huella de una pieza más aire. */
+  minPitch: number
+}
+
+/**
+ * Columnas de una rejilla para `count` celdas repartidas en `rowCount` filas.
+ *
+ * Las filas las fija la bandeja y su separación está medida (en la fase 1: 2,1 u
+ * entre filas de piezas, para que la cámara oblicua no dibuje una justo detrás de
+ * otra, y 1,75 u entre carteles, para que el cartel de al lado no entre en la
+ * banda de fallo), así que el número de columnas sale del de celdas: las que hagan
+ * falta hasta tocar el suelo duro.
+ *
+ * Avisa por consola si ni con el suelo duro caben, porque a partir de ahí dos
+ * piezas compartirían celda en silencio: es el defecto que se midió con la placa
+ * de 19 piezas (los tres jacks de audio entre ellas). La pieza 19 repetía la celda
+ * de la 15 y los carteles, repartidos en `ceil(19 / 6) = 4` filas, ponían una fila
+ * entera **fuera de la mesa** (z = −6,2 con la mesa acabando en −4,9).
+ */
+function gridCols(rowCount: number, count: number, grid: TrayGrid): number[] {
+  const maxCols = Math.floor(grid.width / grid.minPitch) + 1
+  const cols = Math.max(1, Math.min(maxCols, Math.ceil(count / rowCount)))
+  if (count > cols * rowCount) {
+    console.warn(
+      `bandeja: «${grid.name}» no da para ${count} celdas en ${cols}×${rowCount} ` +
+        `(caben ${cols * rowCount}); dos piezas compartirán sitio.`,
+    )
+  }
+  const step = cols > 1 ? Math.min(grid.pitch, grid.width / (cols - 1)) : 0
+  const span = step * (cols - 1)
+  return Array.from({ length: cols }, (_, i) => -span / 2 + i * step)
+}
+
+/**
+ * Rejilla de las piezas de la fase 1: 6 columnas × 3 filas = 18 celdas para las 18
+ * piezas de una placa con ocho tipos de conector, y una columna más (hasta 7, que
+ * dan 21) cuando la placa trae más.
+ *
+ * La anchura se queda en 8 u (±4) a propósito: más ancho sacaba piezas de la mesa
+ * visible (x ≈ 118 px) y las metía debajo de los paneles laterales.
+ */
+const PIECE_GRID: TrayGrid = {
+  name: 'piezas de la fase 1',
+  pitch: 1.6,
+  width: 8,
+  minPitch: TRAY_MAX_SPAN + TRAY_MIN_GAP,
+}
+
+/**
+ * Columnas de la bandeja de una fase. La de la fase 1 se calcula la primera vez que
+ * hace falta, porque depende de cuántas piezas tenga la partida (`IDENTIFY_CELLS`,
+ * que se conoce unas líneas más abajo, cuando ya está montado el catálogo).
+ */
+let identifyCols: number[] | null = null
+function trayCols(stage: StageId): number[] {
+  const { cols, rows } = STAGE_BY_ID[stage].tray
+  if (stage !== 'identify') return cols
+  return (identifyCols ??= gridCols(rows.length, IDENTIFY_CELLS, PIECE_GRID))
+}
+
+function traySlot(stage: StageId, indexInStage: number): [number, number] {
+  const { rows } = STAGE_BY_ID[stage].tray
+  const cols = trayCols(stage)
+  const col = Math.floor(indexInStage / rows.length)
+  const row = indexInStage % rows.length
+  return [cols[Math.min(col, cols.length - 1)], rows[row]]
+}
 
 /**
  * Desplazamiento aleatorio máximo de una pieza dentro de su celda.
@@ -77,8 +146,8 @@ const TRAY_MIN_GAP = 0.15
  * la da el barajado, no el desplazamiento.
  */
 export function trayJitter(stage: StageId): number {
-  const { cols, rows } = STAGE_BY_ID[stage].tray
-  const gap = Math.min(gridGap(cols), gridGap(rows))
+  const { rows } = STAGE_BY_ID[stage].tray
+  const gap = Math.min(gridGap(trayCols(stage)), gridGap(rows))
   // Una rejilla de una sola línea no tiene distancia que medir en ese eje
   // (`gridGap` devuelve infinito) y una de 1×1 no tiene parejas: sin este
   // guardia el desplazamiento saldría infinito y la pieza se iría de la mesa.
@@ -495,6 +564,9 @@ function cableComponents(): RawComponent[] {
 
 const ALL_COMPONENTS: RawComponent[] = [...RAW, ...cableComponents()]
 
+/** Celdas de la mesa de la fase 1: una por componente del catálogo. */
+const IDENTIFY_CELLS = ALL_COMPONENTS.length
+
 export const COMPONENTS: ComponentDef[] = ALL_COMPONENTS.map((component, index) => {
   const indexInStage = stageCounters[component.stage]++
   const variant = pickVariant(component)
@@ -655,8 +727,8 @@ export function rotationPreviewDef(target: RotationTarget, rotation: Vec3): Comp
 }
 
 /**
- * Rejilla de los carteles de la identificación: 6 columnas × 3 filas (18 carteles,
- * uno por pieza, así que no sobra ninguna celda).
+ * Rejilla de los carteles de la identificación: 3 filas y las columnas que hagan
+ * falta, calculadas por `gridCols` (6 para 18 piezas, 7 para 19).
  *
  * La separación entre filas no es estética: en la fase 1 la colocación se resuelve
  * por cercanía al centro del cartel con `snapRadius` 0,6, y el fallo se cuenta
@@ -677,21 +749,33 @@ export function rotationPreviewDef(target: RotationTarget, rotation: Vec3): Comp
  * del borde de la mesa y con 1,3 se sale— y seis columnas dejan las tarjetas a
  * 31 px en la misma fila (el peor hueco) y 55 px en la misma columna.
  */
-const PLATE_COLS = [-3.75, -2.25, -0.75, 0.75, 2.25, 3.75]
-const PLATE_Z0 = -0.95
-const PLATE_DZ = 1.75
+const CARD_ROWS = [-0.95, -2.7, -4.45]
 
-function plateSlot(index: number, rowCount: number): [number, number] {
-  const col = Math.min(Math.floor(index / rowCount), PLATE_COLS.length - 1)
-  const row = index % rowCount
-  return [PLATE_COLS[col], PLATE_Z0 - row * PLATE_DZ]
+/**
+ * 1,5 u entre columnas es la separación mínima (con menos, el cartel de al lado
+ * entra en la banda de fallo) y la anchura disponible son 9 u (±4,5), que es donde
+ * caben las 7 columnas de una placa con más conectores. La forma que se elige es la
+ * que deja todo dentro de la mesa: repartir 19 carteles en una cuarta fila los saca
+ * de ella (la fila de atrás caía en z = −6,2 y la mesa acaba en −4,9).
+ */
+const CARD_GRID: TrayGrid = {
+  name: 'carteles de la fase 1',
+  pitch: 1.5,
+  width: 9,
+  minPitch: 1.5,
+}
+const CARD_COLS = gridCols(CARD_ROWS.length, IDENTIFY_CELLS, CARD_GRID)
+
+function plateSlot(index: number): [number, number] {
+  const rowCount = CARD_ROWS.length
+  const col = Math.min(Math.floor(index / rowCount), CARD_COLS.length - 1)
+  return [CARD_COLS[col], CARD_ROWS[index % rowCount]]
 }
 
 /** Carteles de la identificación: uno por pieza, con el nombre de su tipo. */
 function identifyMounts(): MountPoint[] {
-  const rowCount = Math.ceil(COMPONENTS.length / PLATE_COLS.length)
   return COMPONENTS.map((def, index) => {
-    const [x, z] = plateSlot(index, rowCount)
+    const [x, z] = plateSlot(index)
     return {
       id: `identify_${index}`,
       stage: 'identify' as const,
@@ -747,9 +831,8 @@ export function shuffleLayout(): void {
   // Los carteles se barajan aparte: si no, cada pieza caería sobre el suyo.
   const plates = MOUNTS_BY_STAGE.identify
   const plateOrder = shuffle(plates.length)
-  const rowCount = Math.ceil(plates.length / PLATE_COLS.length)
   plates.forEach((mount, i) => {
-    const [x, z] = plateSlot(plateOrder[i], rowCount)
+    const [x, z] = plateSlot(plateOrder[i])
     mount.position = [x, 0.09, z]
   })
 
