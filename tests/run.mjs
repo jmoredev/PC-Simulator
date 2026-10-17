@@ -171,7 +171,15 @@ async function newPage(browser, url, seed) {
   const warns = []
   page.on('pageerror', (e) => errors.push(e.message))
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push('console: ' + m.text())
+    // El socket de HMR de Vite no es un error de la aplicación: si el servidor de
+    // desarrollo se queda sin aceptar una reconexión —le pasó una vez en una
+    // pasada larga— el cliente registra un `console.error` que no tiene nada que
+    // ver con el simulador, y la sección entera salía en rojo por eso (los checks
+    // funcionales habían pasado). Si de verdad se cae el servidor, las secciones
+    // fallan igual por sus propios checks, y `requireServer()` avisa antes.
+    if (m.type() === 'error' && !/WebSocket connection to 'ws:\/\/[^']+' failed/.test(m.text())) {
+      errors.push('console: ' + m.text())
+    }
     if (m.type() === 'warn') warns.push(m.text())
   })
   // seed: siembra localStorage ANTES de que arranque la app (el store la lee
@@ -1228,7 +1236,7 @@ async function examNoHelp() {
 }
 
 /* ---------- 11. La mesa nunca apila dos piezas ---------- */
-async function traySeparation() {
+async function traySeparation(board = 'motherboard-01') {
   // Dos piezas se solapan si su separación en LOS DOS ejes es menor que su
   // huella. Ninguna pieza dibujada supera 0,75 u en ningún eje (los modelos se
   // normalizan a `def.size` y luego se escalan para no pasar de 0,75; los cables
@@ -1237,11 +1245,11 @@ async function traySeparation() {
   // siempre: antes era ±0,4 fijo y dos vecinas podían quedar a 0,1 u.
   const SPAN = 0.75
   const RUNS = 200
-  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=${board}`)
   const menu = await page
     .waitForSelector('button.mode-card', { timeout: 60000 })
     .catch(() => null)
-  check('mesa: menú de modos visible (sonda de datos)', !!menu)
+  check(`mesa (${board}): menú de modos visible (sonda de datos)`, !!menu)
   if (!menu) {
     await page.close()
     return
@@ -1298,7 +1306,7 @@ async function traySeparation() {
   for (const stage of ['identify', 'board', 'ports', 'peripherals']) {
     const r = result[stage]
     check(
-      `mesa: ninguna pieza se solapa en «${stage}» (${RUNS} barajados)`,
+      `mesa (${board}): ninguna pieza se solapa en «${stage}» (${RUNS} barajados)`,
       r.solapados === 0 && r.peor >= SPAN,
       `${r.piezas} piezas, separación mínima ${r.peor} u (mínimo ${SPAN}) y ${r.solapados} pares por debajo`,
     )
@@ -1307,7 +1315,7 @@ async function traySeparation() {
   // ninguna debe esconderse detrás de otra en la misma columna visual.
   const id = result.identify
   check(
-    'mesa: en la fase 1 ninguna pieza se esconde en la misma columna visual',
+    `mesa (${board}): en la fase 1 ninguna pieza se esconde en la misma columna visual`,
     id.columnaCorta === 0 && id.peorColumna >= 1.3,
     `misma columna: separación mínima en profundidad ${id.peorColumna} u (mínimo 1.3) y ${id.columnaCorta} pares por debajo`,
   )
@@ -1317,12 +1325,12 @@ async function traySeparation() {
   // rejilla de esa fase siga dejando más aire del mínimo (0,9 en vez de 0,75),
   // que es la regresión que provocó el solape cuando la rejilla se estrechó.
   check(
-    'mesa: la identificación mantiene su suelo de diseño (0,9 u)',
+    `mesa (${board}): la identificación mantiene su suelo de diseño (0,9 u)`,
     result.identify.peor >= 0.9,
     `separación mínima ${result.identify.peor} u (suelo de diseño 0,9; mínimo duro 0,75)`,
   )
 
-  check('mesa: sin errores', errors.length === 0, errors.join(' | '))
+  check(`mesa (${board}): sin errores`, errors.length === 0, errors.join(' | '))
   await page.close()
 }
 
@@ -2154,8 +2162,11 @@ async function stageBanner() {
       .catch(() => null)
 
   await menuCards[0].click() // práctica
-  await page.waitForSelector('.topbar', { timeout: 60000 })
-  await wait(700)
+  // El cartel se quita solo a los 3,6 s, así que se ESPERA a que salga en vez de
+  // mirar a un tiempo fijo: con la máquina cargada (la pasada entera son 18 minutos
+  // de Chromium con render por software) se llegaba tarde a la lectura y el cartel
+  // ya no estaba —falso negativo medido en una pasada completa—.
+  await page.waitForSelector('.stage-banner', { timeout: 60000 })
   const esperado = await page.evaluate(async () => {
     const m = await import('/src/data/stages.ts')
     return m.STAGES.map((s) => ({ id: s.id, titulo: s.title, texto: s.hint, corto: s.short }))
@@ -2585,13 +2596,13 @@ async function examIdentifyHint() {
  * observable en examen —soltar 0,7 u hacia el cartel vecino más próximo— que es lo
  * que hacía perder puntos.
  */
-async function identifyCards() {
-  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+async function identifyCards(board = 'motherboard-01') {
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=${board}`)
   const cartas = await page
     .waitForSelector('button.mode-card', { timeout: 60000 })
     .then(() => page.$$('button.mode-card'))
     .catch(() => [])
-  check('carteles: menú de modos visible', cartas.length >= 2, `${cartas.length}`)
+  check(`carteles (${board}): menú de modos visible`, cartas.length >= 2, `${cartas.length}`)
   if (cartas.length < 2) {
     await page.close()
     return
@@ -2637,24 +2648,24 @@ async function identifyCards() {
   })
 
   check(
-    'carteles: hay uno por cada pieza',
+    `carteles (${board}): hay uno por cada pieza`,
     reparto.cuantos === reparto.piezas,
     `${reparto.cuantos} carteles para ${reparto.piezas} piezas`,
   )
   check(
-    'carteles: ningún cartel ajeno cabe en la banda de fallo del suyo',
+    `carteles (${board}): ningún cartel ajeno cabe en la banda de fallo del suyo`,
     reparto.minPlano >= reparto.snap + reparto.wrong,
     `separación mínima ${reparto.minPlano.toFixed(2)} u (X ${reparto.minX.toFixed(2)}, Z ${reparto.minZ.toFixed(2)}) frente a snapRadius + wrongRadius = ${(reparto.snap + reparto.wrong).toFixed(2)} u`,
   )
   check(
-    'carteles: la fila de atrás cabe en la mesa',
+    `carteles (${board}): la fila de atrás cabe en la mesa`,
     reparto.bordeTrasero >= reparto.mesaTrasera,
     `borde trasero ${reparto.bordeTrasero.toFixed(2)} u, la mesa llega a ${reparto.mesaTrasera.toFixed(2)} u`,
   )
   // El requisito de la persona usuaria: soltar SOBRE la tarjeta tiene que colocar
   // siempre. Basta con que medio lado de la tarjeta quepa en `snapRadius`.
   check(
-    'carteles: soltar sobre la propia tarjeta siempre coloca',
+    `carteles (${board}): soltar sobre la propia tarjeta siempre coloca`,
     reparto.cardHalf < reparto.snap,
     `medio lado ${reparto.cardHalf.toFixed(2)} u frente a snapRadius ${reparto.snap.toFixed(2)} u`,
   )
@@ -2662,14 +2673,14 @@ async function identifyCards() {
   // hasta dónde llega el alcance del vecino: si `snapRadius` y ese alcance se
   // solapan, no queda ningún tiro largo sin coste.
   check(
-    'carteles: el vecino solo cuenta pasado snapRadius',
+    `carteles (${board}): el vecino solo cuenta pasado snapRadius`,
     reparto.minPlano - reparto.wrong > reparto.snap,
     `el vecino entra en su banda a ${(reparto.minPlano - reparto.wrong).toFixed(2)} u del centro, más allá de snapRadius ${reparto.snap.toFixed(2)} u`,
   )
   // El tiro que hace esta sección (0,7 u hacia el vecino más próximo) no puede
   // alcanzar su banda: deja la pieza sin colocar y no cuesta nada.
   check(
-    'carteles: el tiro de 0,7 u hacia el vecino no llega a su banda',
+    `carteles (${board}): el tiro de 0,7 u hacia el vecino no llega a su banda`,
     reparto.minPlano >= reparto.snap + 0.7,
     `separación mínima ${reparto.minPlano.toFixed(2)} u frente a ${(reparto.snap + 0.7).toFixed(2)} u`,
   )
@@ -2693,22 +2704,22 @@ async function identifyCards() {
     }
   }
   check(
-    'carteles: dos tarjetas vecinas no se pegan en pantalla',
+    `carteles (${board}): dos tarjetas vecinas no se pegan en pantalla`,
     hueco >= 28,
     `${Math.round(hueco)} px de hueco entre las dos más próximas; hacen falta 28`,
   )
-  check('carteles: el reparto se mide sin errores de página', errors.length === 0, errors.join(' | '))
+  check(`carteles (${board}): el reparto se mide sin errores de página`, errors.length === 0, errors.join(' | '))
   await page.close()
 
   // El efecto que reportó el alumnado, en examen y con el ratón: se elige la pieza
   // cuyo cartel tiene al vecino MÁS próximo (con el reparto anterior son las filas a
   // 0,95 u) y se suelta 0,7 u hacia él, que es media tarjeta más allá de su borde.
-  const examen = await newPage(browser, `${BASE_URL}/?board=motherboard-01`)
+  const examen = await newPage(browser, `${BASE_URL}/?board=${board}`)
   const cartasExamen = await examen.page
     .waitForSelector('button.mode-card', { timeout: 60000 })
     .then(() => examen.page.$$('button.mode-card'))
     .catch(() => [])
-  check('carteles: el examen arranca', cartasExamen.length >= 2, `${cartasExamen.length} tarjetas`)
+  check(`carteles (${board}): el examen arranca`, cartasExamen.length >= 2, `${cartasExamen.length} tarjetas`)
   if (cartasExamen.length < 2) {
     await examen.page.close()
     return
@@ -2750,7 +2761,7 @@ async function identifyCards() {
   const [lejos] = await proyectaFase1(examen.page, [[cerca.x, objetivo.cartel[1], cerca.z]])
   const [encima] = await proyectaFase1(examen.page, [objetivo.cartel])
   check(
-    'carteles: la pieza, su cartel y el punto vecino se localizan en pantalla',
+    `carteles (${board}): la pieza, su cartel y el punto vecino se localizan en pantalla`,
     !!pieza && !!lejos && !!encima,
     `${objetivo.name}: pieza ${JSON.stringify(pieza)}, a 0,7 u ${JSON.stringify(lejos)} (vecino a ${objetivo.distancia.toFixed(2)} u)`,
   )
@@ -2807,22 +2818,22 @@ async function identifyCards() {
   const despues = await juego()
   const puntosDespues = await puntos()
   check(
-    'carteles: la pieza se coge y se suelta a 0,7 u de su cartel',
+    `carteles (${board}): la pieza se coge y se suelta a 0,7 u de su cartel`,
     soltado,
     `${objetivo.name}`,
   )
   check(
-    'carteles: soltar pasado el borde no cuenta el cartel de al lado',
+    `carteles (${board}): soltar pasado el borde no cuenta el cartel de al lado`,
     despues.errors === antes.errors && despues.filas === antes.filas,
     `fallos ${antes.errors} → ${despues.errors}, filas del resumen ${antes.filas} → ${despues.filas}`,
   )
   check(
-    'carteles: soltar pasado el borde no resta puntos',
+    `carteles (${board}): soltar pasado el borde no resta puntos`,
     puntosDespues === puntosAntes,
     `${puntosAntes} → ${puntosDespues}`,
   )
   check(
-    'carteles: la pieza no se coloca en el cartel de al lado',
+    `carteles (${board}): la pieza no se coloca en el cartel de al lado`,
     despues.colocadas === antes.colocadas,
     `${antes.colocadas} → ${despues.colocadas} colocadas`,
   )
@@ -2833,23 +2844,140 @@ async function identifyCards() {
   const colocado = await arrastra(encima)
   const final = await juego()
   check(
-    'carteles: sobre su propio cartel la pieza se coloca',
+    `carteles (${board}): sobre su propio cartel la pieza se coloca`,
     colocado && final.colocadas === despues.colocadas + 1,
     `${despues.colocadas} → ${final.colocadas} colocadas`,
   )
   check(
-    'carteles: colocar bien no cuesta ningún fallo',
+    `carteles (${board}): colocar bien no cuesta ningún fallo`,
     final.errors === despues.errors,
     `${despues.errors} → ${final.errors}`,
   )
-  check('carteles: sin errores de página', examen.errors.length === 0, examen.errors.join(' | '))
+  check(`carteles (${board}): sin errores de página`, examen.errors.length === 0, examen.errors.join(' | '))
   await examen.page.close()
+}
+
+/* ---------- 20. Cada pieza de la fase 1 se dibuja en la celda que dice su dato ---------- */
+/**
+ * El fallback procedural (`Placeholder`) alineaba la pieza midiendo su caja
+ * envolvente en coordenadas de MUNDO (`Box3.setFromObject`), así que el centrado
+ * incluía la propia colocación de la pieza en la mesa y la dejaba en el origen del
+ * mundo: el centro de la mesa. Solo se notaba en las piezas que dibuja el código
+ * (los tres jacks y el USB-C, que no tienen ni PNG ni .glb): su celda quedaba vacía
+ * y, al arrastrarlas, el fantasma salía en el centro de la mesa en vez de bajo el
+ * cursor. Ninguna prueba las cogía con el ratón, así que pasaba desapercibido.
+ *
+ * La comprobación no mira el código: pregunta al lienzo por la geometría. Con
+ * `pointermove` sintéticos sobre el canvas —que es exactamente el evento que R3F
+ * escucha, y que no pasa por los paneles de la interfaz porque son DOM por encima—
+ * comprueba que debajo del punto donde la pieza DEBERÍA estar hay algo que responde
+ * al ratón (el cursor se pone en `grab`). Un `page.mouse.move` por punto costaría
+ * minutos; así se barren todas las piezas en un par de segundos.
+ */
+async function identifyDrawn(board = 'motherboard-01') {
+  const { page, errors } = await newPage(browser, `${BASE_URL}/?board=${board}`)
+  const cartas = await page
+    .waitForSelector('button.mode-card', { timeout: 60000 })
+    .then(() => page.$$('button.mode-card'))
+    .catch(() => [])
+  check(`dibujo (${board}): menú de modos visible`, cartas.length >= 2, `${cartas.length}`)
+  if (cartas.length < 2) {
+    await page.close()
+    return
+  }
+  await cartas[0].click()
+  // Las piezas con .glb tardan: se espera a que la barra de carga se vaya (si no
+  // aparece, porque ya estaba todo en caché, sigue de largo).
+  await page
+    .waitForFunction(() => !document.querySelector('.loadingbar'), { timeout: 120000 })
+    .catch(() => null)
+  await wait(800)
+
+  const datos = await page.evaluate(async () => {
+    const c = await import('/src/data/components.ts')
+    const st = await import('/src/data/stages.ts')
+    const assets = await import('/src/data/assets.ts')
+    const stage = st.STAGES[0]
+    return {
+      total: c.COMPONENTS.length,
+      // Las que dibuja el código (sin PNG y sin .glb): son las que destaparon el
+      // defecto, así que se nombran en el detalle.
+      procedurales: c.COMPONENTS.filter(
+        (d) => !assets.connectorImageUrl(d.kind) && !assets.modelUrl(d),
+      ).map((d) => d.id),
+      mundos: c.COMPONENTS.map((d) => [
+        d.identifyPos[0],
+        stage.tray.surfaceY + 0.05,
+        d.identifyPos[1],
+      ]),
+      nombres: c.COMPONENTS.map((d) => d.id),
+    }
+  })
+  const pantallas = await proyectaFase1(page, datos.mundos)
+
+  const sinDibujar = await page.evaluate(
+    async (puntos) => {
+      const canvas = document.querySelector('canvas')
+      const rect = canvas.getBoundingClientRect()
+      const hayPieza = (x, y) => {
+        canvas.dispatchEvent(
+          new PointerEvent('pointermove', {
+            clientX: rect.left + x,
+            clientY: rect.top + y,
+            bubbles: true,
+            pointerId: 1,
+            pointerType: 'mouse',
+            isPrimary: true,
+            buttons: 0,
+          }),
+        )
+        return document.body.style.cursor === 'grab'
+      }
+      // Nueve muestras alrededor del centro de la celda: el punto exacto puede caer
+      // en un hueco de la geometría (el latiguillo de un jack, el asa del monitor).
+      const offsets = [
+        [0, 0], [12, 0], [-12, 0], [0, 12], [0, -12],
+        [12, 12], [-12, -12], [12, -12], [-12, 12],
+      ]
+      const fuera = []
+      for (const p of puntos) {
+        const hay = offsets.some(([dx, dy]) => hayPieza(p.x + dx, p.y + dy))
+        if (!hay) fuera.push(p.id)
+      }
+      return fuera
+    },
+    pantallas.map((p, i) => ({ id: datos.nombres[i], x: p.x, y: p.y })),
+  )
+
+  check(
+    `dibujo (${board}): las ${datos.total} piezas de la fase 1 están dibujadas en su celda`,
+    sinDibujar.length === 0,
+    sinDibujar.length
+      ? `sin geometría en su celda: ${sinDibujar.join(', ')}`
+      : `${datos.procedurales.length} de ellas procedurales (${datos.procedurales.join(', ')})`,
+  )
+  check(`dibujo (${board}): sin errores de página`, errors.length === 0, errors.join(' | '))
+  await page.close()
 }
 
 /**
  * Secciones de la pasada, en orden. `ONLY=examSummary,loadingBar` acota la
  * ejecución a las nombradas (para falsar un cambio sin pagar la pasada entera).
  */
+/**
+ * Las dos formas que tiene hoy la fase 1: 18 piezas (una placa de ocho tipos de
+ * conector) y 19 (una más). La rejilla de esa fase se deriva del número de piezas
+ * —tanto la de las piezas como la de los carteles—, así que sus dos secciones se
+ * miden en las dos placas: con 19 piezas y la rejilla fija de 6 columnas, una fila
+ * entera de carteles caía fuera de la mesa y la pieza 19 pisaba la celda de la 15.
+ * La 02 tiene los mismos tipos que la 01, así que no aporta un reparto distinto.
+ */
+const PLACAS_FASE1 = ['motherboard-01', 'motherboard-03']
+
+async function enLasDosPlacas(seccion) {
+  for (const board of PLACAS_FASE1) await seccion(board)
+}
+
 const SECTIONS = [
   ['fullGame', fullGame],
   ['examGiveUpGuard', examGiveUpGuard],
@@ -2860,7 +2988,7 @@ const SECTIONS = [
   ['dragGhostVisible', dragGhostVisible],
   ['sidePanels', sidePanels],
   ['examNoHelp', examNoHelp],
-  ['traySeparation', traySeparation],
+  ['traySeparation', () => enLasDosPlacas(traySeparation)],
   ['examDrag', examDrag],
   ['examSummary', examSummary],
   ['touchDrag', touchDrag],
@@ -2868,7 +2996,8 @@ const SECTIONS = [
   ['stageBanner', stageBanner],
   ['componentZoom', componentZoom],
   ['examIdentifyHint', examIdentifyHint],
-  ['identifyCards', identifyCards],
+  ['identifyCards', () => enLasDosPlacas(identifyCards)],
+  ['identifyDrawn', () => enLasDosPlacas(identifyDrawn)],
 ]
 
 const ONLY = process.env.ONLY
